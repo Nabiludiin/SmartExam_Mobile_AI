@@ -25,7 +25,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -42,7 +41,7 @@ val ExamDrawerTextBlue = Color(0xFF0F172A)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ExamScreen(viewModel: ExamViewModel = viewModel()) {
+fun ExamScreen(viewModel: ExamViewModel = viewModel(), onFinishExam: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val sheetState = rememberModalBottomSheetState()
@@ -98,7 +97,8 @@ fun ExamScreen(viewModel: ExamViewModel = viewModel()) {
                     currentIdx = currentQuestionIndex,
                     total = totalQuestions,
                     onPrevious = { viewModel.soalSebelumnya() },
-                    onNext = { viewModel.soalSelanjutnya() }
+                    onNext = { viewModel.soalSelanjutnya() },
+                    onFinish = onFinishExam // <-- INI YANG TADI TERLEWAT
                 )
             }
         }
@@ -223,7 +223,7 @@ fun ExamQuestionContent(
 }
 
 @Composable
-fun ExamNavigationButtons(currentIdx: Int, total: Int, onPrevious: () -> Unit, onNext: () -> Unit) {
+fun ExamNavigationButtons(currentIdx: Int, total: Int, onPrevious: () -> Unit, onNext: () -> Unit, onFinish: () -> Unit) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         if (currentIdx > 0) {
             Button(onClick = onPrevious, colors = ButtonDefaults.buttonColors(containerColor = ExamCardBorder, contentColor = ExamDeepBlue)) {
@@ -240,7 +240,7 @@ fun ExamNavigationButtons(currentIdx: Int, total: Int, onPrevious: () -> Unit, o
                 Icon(imageVector = Icons.Default.ArrowForward, contentDescription = "Next", tint = Color.White)
             }
         } else {
-            Button(onClick = { }, colors = ButtonDefaults.buttonColors(containerColor = ExamOrange)) {
+            Button(onClick = onFinish, colors = ButtonDefaults.buttonColors(containerColor = ExamOrange)) {
                 Text("Akhiri Tes", color = Color.White, fontWeight = FontWeight.Bold)
             }
         }
@@ -271,28 +271,5 @@ fun ExamBottomNavItem(icon: ImageVector, label: String, tint: Color = ExamDeepBl
     ) {
         Icon(imageVector = icon, contentDescription = label, tint = tint)
         Text(text = label, fontSize = 12.sp, color = tint)
-    }
-}
-
-
-@Preview(showBackground = true)
-@Composable
-fun ExamQuestionContentPreview() {
-    MaterialTheme {
-        ExamQuestionContent(
-            category = "Professional Ethics",
-            questionNumber = "Q1",
-            questionText = "Apa yang dimaksud dengan integritas dalam lingkungan kerja profesional?",
-            answerText = "Menurut saya integritas adalah...",
-            onAnswerChange = {}
-        )
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun ExamBottomNavigationBarPreview() {
-    MaterialTheme {
-        ExamBottomNavigationBar(onNavClick = {})
     }
 }
