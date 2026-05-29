@@ -38,19 +38,41 @@ val ExamCardBorder = Color(0xFFE2E8F0)
 val ExamTextGray = Color(0xFF64748B)
 val ExamBackground = Color.White
 val ExamDrawerTextBlue = Color(0xFF0F172A)
+val ExamAnsweredGreen = Color(0xFF10B981)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ExamScreen(viewModel: ExamViewModel = viewModel(), onFinishExam: () -> Unit = {}) {
+fun ExamScreen(
+    viewModel: ExamViewModel = viewModel(),
+    onFinishExam: () -> Unit = {}
+) {
     val scope = rememberCoroutineScope()
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val sheetState = rememberModalBottomSheetState()
     var showBottomSheet by remember { mutableStateOf(false) }
 
+    // Ambil data asinkron dari server
+    val questions = viewModel.questions.collectAsState().value
     val answerText by viewModel.jawabanState.collectAsState()
     val timeLeft by viewModel.timeLeftString.collectAsState()
     val currentQuestionIndex by viewModel.currentQuestionIndex.collectAsState()
-    val totalQuestions = viewModel.questions.size
+    val isTimeUp by viewModel.isTimeUp.collectAsState()
+    val totalQuestions = questions.size
+
+    val answeredStatus = remember { mutableStateMapOf<Int, Boolean>() }
+
+    // FUNGSI AUTO-SUBMIT JIKA WAKTU HABIS
+    LaunchedEffect(isTimeUp) {
+        if (isTimeUp && questions.isNotEmpty()) {
+            // Karena ini purwarupa, kita pakai mahasiswaId statis = 3 (Budi Santoso dari database)
+            viewModel.kirimSemuaJawabanKeServer(mahasiswaId = 3)
+            onFinishExam()
+        }
+    }
+
+    LaunchedEffect(currentQuestionIndex, answerText) {
+        answeredStatus[currentQuestionIndex] = answerText.isNotBlank()
+    }
 
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -75,31 +97,49 @@ fun ExamScreen(viewModel: ExamViewModel = viewModel(), onFinishExam: () -> Unit 
             },
             containerColor = ExamBackground
         ) { paddingValues ->
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp, vertical = 24.dp)
-            ) {
-                ExamProgressHeader(currentIdx = currentQuestionIndex, total = totalQuestions)
-                Spacer(modifier = Modifier.height(24.dp))
-                val currentQuestion = viewModel.questions[currentQuestionIndex]
-                ExamQuestionContent(
-                    category = currentQuestion.category,
-                    questionNumber = "Q${currentQuestion.id}",
-                    questionText = currentQuestion.text,
-                    answerText = answerText,
-                    onAnswerChange = { viewModel.onJawabanBerubah(it) }
-                )
-                Spacer(modifier = Modifier.height(24.dp))
-                ExamNavigationButtons(
-                    currentIdx = currentQuestionIndex,
-                    total = totalQuestions,
-                    onPrevious = { viewModel.soalSebelumnya() },
-                    onNext = { viewModel.soalSelanjutnya() },
-                    onFinish = onFinishExam // <-- INI YANG TADI TERLEWAT
-                )
+
+            // 1. PROTEKSI LOADING: Jangan tampilkan soal kalau array masih kosong (sedang nembak API)
+            if (questions.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize().padding(paddingValues),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = ExamDeepBlue)
+                }
+            } else {
+                // 2. SOAL SUDAH DIUNDUH: Tampilkan layout
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 20.dp, vertical = 24.dp)
+                ) {
+                    ExamProgressHeader(currentIdx = currentQuestionIndex, total = totalQuestions)
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    val currentQuestion = questions[currentQuestionIndex]
+
+                    ExamQuestionContent(
+                        category = "Ujian Esai", // Category dihapus dari DB, kita static dulu
+                        questionNumber = "Q${currentQuestionIndex + 1}",
+                        questionText = currentQuestion.text,
+                        answerText = answerText,
+                        onAnswerChange = { viewModel.onJawabanBerubah(it) }
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                    ExamNavigationButtons(
+                        currentIdx = currentQuestionIndex,
+                        total = totalQuestions,
+                        onPrevious = { viewModel.soalSebelumnya() },
+                        onNext = { viewModel.soalSelanjutnya() },
+                        onFinish = {
+                            // Fungsi saat klik tombol Akhiri Tes
+                            viewModel.kirimSemuaJawabanKeServer(mahasiswaId = 3)
+                            onFinishExam()
+                        }
+                    )
+                }
             }
         }
     }
@@ -120,8 +160,19 @@ fun ExamScreen(viewModel: ExamViewModel = viewModel(), onFinishExam: () -> Unit 
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     itemsIndexed(Array(totalQuestions) { it }) { index, _ ->
-                        val backgroundColor = if (index == currentQuestionIndex) ExamDeepBlue else ExamCardBorder
-                        val textColor = if (index == currentQuestionIndex) Color.White else ExamDrawerTextBlue
+                        val isCurrent = index == currentQuestionIndex
+                        val isAnswered = answeredStatus[index] == true
+
+                        val backgroundColor = when {
+                            isCurrent -> ExamDeepBlue
+                            isAnswered -> ExamAnsweredGreen
+                            else -> ExamCardBorder
+                        }
+
+                        val textColor = when {
+                            isCurrent || isAnswered -> Color.White
+                            else -> ExamDrawerTextBlue
+                        }
 
                         Box(
                             modifier = Modifier
@@ -149,6 +200,9 @@ fun ExamScreen(viewModel: ExamViewModel = viewModel(), onFinishExam: () -> Unit 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExamTopAppBar(timerText: String, onMenuClick: () -> Unit) {
+    val isWarning = timerText.startsWith("00:")
+    val timerColor = if (isWarning) Color(0xFFDC2626) else ExamOrange
+
     TopAppBar(
         navigationIcon = {
             IconButton(onClick = onMenuClick) {
@@ -158,7 +212,7 @@ fun ExamTopAppBar(timerText: String, onMenuClick: () -> Unit) {
         title = { Text("Aptitude Test", fontWeight = FontWeight.Bold) },
         actions = {
             Surface(
-                color = ExamOrange,
+                color = timerColor,
                 shape = MaterialTheme.shapes.extraLarge,
                 modifier = Modifier.padding(end = 16.dp)
             ) {

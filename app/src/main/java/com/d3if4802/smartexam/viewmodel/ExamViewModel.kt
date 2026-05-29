@@ -1,127 +1,175 @@
 package com.d3if4802.smartexam.viewmodel
 
-import android.app.Application
-import android.os.CountDownTimer
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.d3if4802.smartexam.data.AppDatabase
-import com.d3if4802.smartexam.data.DraftEntity
+import com.d3if4802.smartexam.data.Question
+import com.d3if4802.smartexam.data.RetrofitClient
+import com.d3if4802.smartexam.db.AnswerDao
+import com.d3if4802.smartexam.db.AnswerEntity
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-// Data class sederhana untuk menampung pertanyaan
-data class Question(
-    val id: Int,
-    val category: String,
-    val text: String
-)
+class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
 
-class ExamViewModel(application: Application) : AndroidViewModel(application) {
-    private val draftDao = AppDatabase.getDatabase(application).draftDao()
+    // 1. STATE UNTUK MENYIMPAN SOAL DARI SERVER
+    private val _questions = MutableStateFlow<List<Question>>(emptyList())
+    val questions: StateFlow<List<Question>> = _questions.asStateFlow()
 
-    // --- LOGIKA 10 SOAL ---
-    private val _currentQuestionIndex = MutableStateFlow(0) // Indeks soal saat ini (0-9)
-    val currentQuestionIndex: StateFlow<Int> = _currentQuestionIndex
-
-    // Bank Soal: Saya buatkan 10 soal profesional/etika esai
-    val questions = listOf(
-        Question(1, "Aptitude Test: Ethics", "Apa yang dimaksud dengan integritas dalam lingkungan kerja profesional?"),
-        Question(2, "Aptitude Test: Collaboration", "Jelaskan pentingnya kerja sama tim dalam menyelesaikan proyek besar!"),
-        Question(3, "Professional Development", "Sebutkan strategi Anda untuk meningkatkan kompetensi diri di era digital!"),
-        Question(4, "Decision Making", "Bagaimana Anda menangani konflik kepentingan antara klien dan perusahaan?"),
-        Question(5, "Analytical Thinking", "Analisis dampak penggunaan AI dalam efisiensi administrasi kantoran!"),
-        Question(6, "Leadership", "Menurut Anda, kualitas kepemimpinan apa yang paling krusial di masa krisis?"),
-        Question(7, "Confidentiality", "Seberapa penting menjaga kerahasiaan data klien dalam pekerjaan esai Anda?"),
-        Question(8, "Time Management", "Bagaimana Anda mengatur prioritas saat menghadapi beberapa *deadline* sekaligus?"),
-        Question(9, "Critical Reasoning", "Jelaskan pandangan Anda mengenai keseimbangan antara keuntungan perusahaan dan tanggung jawab sosial!"),
-        Question(10, "Risk Management", "Bagaimana langkah Anda dalam mitigasi risiko kesalahan dalam penyusunan laporan keuangan?")
-    )
-
-    // --- LOGIKA JAWABAN (AUTOSAVE) ---
     private val _jawabanState = MutableStateFlow("")
-    val jawabanState: StateFlow<String> = _jawabanState
+    val jawabanState: StateFlow<String> = _jawabanState.asStateFlow()
 
-    // --- LOGIKA TIMER MUNDUR (45 MENIT) ---
+    private val _currentQuestionIndex = MutableStateFlow(0)
+    val currentQuestionIndex: StateFlow<Int> = _currentQuestionIndex.asStateFlow()
+
     private val _timeLeftString = MutableStateFlow("45:00")
-    val timeLeftString: StateFlow<String> = _timeLeftString
-    private var countDownTimer: CountDownTimer? = null
+    val timeLeftString: StateFlow<String> = _timeLeftString.asStateFlow()
+
+    private val _allAnswers = MutableStateFlow<List<AnswerEntity>>(emptyList())
+    val allAnswers: StateFlow<List<AnswerEntity>> = _allAnswers.asStateFlow()
+
+    private val _isTimeUp = MutableStateFlow(false)
+    val isTimeUp: StateFlow<Boolean> = _isTimeUp.asStateFlow()
+
+    private var timerJob: Job? = null
 
     init {
-        // Saat ViewModel dibuat, load soal nomor 1 (indeks 0) dan mulai timer
-        muatSoalAtauDraft(0)
-        startCountdown()
+        // 2. OTOMATIS AMBIL SOAL SAAT MASUK KE LAYAR UJIAN
+        fetchQuestionsFromServer()
+        fetchAllAnswers()
     }
 
-    // Fungsi untuk navigasi cepat (klik dari sidebar)
-    fun rubahIndeksSoal(indeksBaru: Int) {
-        if (indeksBaru in 0..9) {
-            _currentQuestionIndex.value = indeksBaru
-            muatSoalAtauDraft(indeksBaru)
+    // 3. FUNGSI UNTUK MENYEDOT DATA DARI POSTGREST
+    private fun fetchQuestionsFromServer() {
+        viewModelScope.launch {
+            try {
+                // Tarik data dari database lewat RetrofitClient
+                val response = RetrofitClient.apiService.getQuestions()
+                _questions.value = response
+
+                // Jika soal berhasil didapat, langsung buka soal pertama dan jalankan timer
+                if (response.isNotEmpty()) {
+                    loadJawaban(0)
+                    startTimer()
+                }
+            } catch (e: Exception) {
+                // Pantau Logcat jika IP salah atau koneksi terputus
+                e.printStackTrace()
+            }
         }
     }
 
-    fun soalSelanjutnya() {
-        if (_currentQuestionIndex.value < 9) {
-            val indeksBaru = _currentQuestionIndex.value + 1
-            rubahIndeksSoal(indeksBaru)
+    fun startTimer() {
+        timerJob?.cancel()
+        _isTimeUp.value = false
+        timerJob = viewModelScope.launch {
+            var timeInSeconds = 45 * 60 // 45 Menit
+            while (timeInSeconds > 0) {
+                delay(1000L)
+                timeInSeconds--
+                val minutes = timeInSeconds / 60
+                val seconds = timeInSeconds % 60
+                _timeLeftString.value = String.format("%02d:%02d", minutes, seconds)
+            }
+            _isTimeUp.value = true
+        }
+    }
+
+    fun resetExam() {
+        viewModelScope.launch {
+            answerDao.deleteAllAnswers()
+            _jawabanState.value = ""
+            _currentQuestionIndex.value = 0
+            startTimer()
+        }
+    }
+
+    private fun fetchAllAnswers() {
+        viewModelScope.launch {
+            answerDao.getAllAnswers().collect { list ->
+                _allAnswers.value = list
+            }
+        }
+    }
+
+    fun onJawabanBerubah(jawabanBaru: String) {
+        _jawabanState.value = jawabanBaru
+        simpanJawaban(jawabanBaru)
+    }
+
+    fun rubahIndeksSoal(indeksBaru: Int) {
+        val currentQuestions = _questions.value
+        // Cek validasi array agar aplikasi tidak force close
+        if (currentQuestions.isNotEmpty() && indeksBaru in currentQuestions.indices) {
+            _currentQuestionIndex.value = indeksBaru
+            loadJawaban(indeksBaru)
         }
     }
 
     fun soalSebelumnya() {
-        if (_currentQuestionIndex.value > 0) {
-            val indeksBaru = _currentQuestionIndex.value - 1
-            rubahIndeksSoal(indeksBaru)
-        }
+        rubahIndeksSoal(_currentQuestionIndex.value - 1)
     }
 
-    private fun muatSoalAtauDraft(index: Int) {
-        val soalId = questions[index].id
+    fun soalSelanjutnya() {
+        rubahIndeksSoal(_currentQuestionIndex.value + 1)
+    }
+
+    private fun simpanJawaban(jawaban: String) {
         viewModelScope.launch {
-            // Ambil draf yang spesifik untuk soalId ini
-            val savedDraft = draftDao.ambilDraft(soalId)
-            _jawabanState.value = savedDraft ?: ""
+            val currentQuestions = _questions.value
+            if (currentQuestions.isNotEmpty()) {
+                val entity = AnswerEntity(
+                    questionId = currentQuestions[_currentQuestionIndex.value].id,
+                    answerText = jawaban
+                )
+                answerDao.insertAnswer(entity)
+            }
         }
     }
 
-    // Dipanggil setiap kali user mengetik 1 huruf di layar
-    fun onJawabanBerubah(teksBaru: String) {
-        _jawabanState.value = teksBaru
-        val soalId = questions[_currentQuestionIndex.value].id
-        simpanKeRoom(soalId, teksBaru) // Langsung amankan ke SQLite!
-    }
-
-    private fun simpanKeRoom(soalId: Int, teks: String) {
+    private fun loadJawaban(indeks: Int) {
         viewModelScope.launch {
-            val draft = DraftEntity(
-                idSoal = soalId, // Tautkan jawaban ke ID soal yang benar
-                teksJawaban = teks,
-                waktuTersimpan = System.currentTimeMillis()
-            )
-            draftDao.simpanDraft(draft)
+            val currentQuestions = _questions.value
+            if (currentQuestions.isNotEmpty()) {
+                val qId = currentQuestions[indeks].id
+                val savedAnswer = answerDao.getAnswer(qId)
+                _jawabanState.value = savedAnswer?.answerText ?: ""
+            }
         }
     }
 
-    // Logika Timer Mundur
-    private fun startCountdown() {
-        // 45 menit = 45 * 60 * 1000 milidetik
-        countDownTimer = object : CountDownTimer(45 * 60 * 1000, 1000) {
-            override fun onTick(millisUntilFinished: Long) {
-                val minutes = (millisUntilFinished / 1000) / 60
-                val seconds = (millisUntilFinished / 1000) % 60
-                // Format waktu MM:SS (misal 05:08)
-                _timeLeftString.value = String.format("%02d:%02d", minutes, seconds)
+    // 4. FUNGSI UNTUK MENGIRIM SEMUA JAWABAN KE SERVER SAAT UJIAN SELESAI
+    fun kirimSemuaJawabanKeServer(mahasiswaId: Int) {
+        viewModelScope.launch {
+            try {
+                val localAnswers = _allAnswers.value
+                val payload = localAnswers.map { answerEntity ->
+                    com.d3if4802.smartexam.data.SubmitAnswerRequest(
+                        mahasiswaId = mahasiswaId,
+                        questionId = answerEntity.questionId,
+                        jawabanMahasiswa = answerEntity.answerText
+                    )
+                }
+                if (payload.isNotEmpty()) {
+                    RetrofitClient.apiService.submitAllAnswers(payload)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
-
-            override fun onFinish() {
-                _timeLeftString.value = "00:00"
-                // TODO: Logika saat waktu habis (misal: otomatis kumpulkan)
-            }
-        }.start()
+        }
     }
+}
 
-    override fun onCleared() {
-        super.onCleared()
-        countDownTimer?.cancel()
+class ExamViewModelFactory(private val answerDao: AnswerDao) : ViewModelProvider.Factory {
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(ExamViewModel::class.java)) {
+            @Suppress("UNCHECKED_CAST")
+            return ExamViewModel(answerDao) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class")
     }
 }
