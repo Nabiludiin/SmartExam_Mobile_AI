@@ -2,6 +2,7 @@ package com.d3if4802.smartexam.data
 
 import com.google.gson.annotations.SerializedName
 import retrofit2.Retrofit
+import retrofit2.Response
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.Body
 import retrofit2.http.GET
@@ -92,6 +93,12 @@ data class AssessmentResult(
     @SerializedName("questions") val question: Question? = null
 )
 
+data class UpdateScoreRequest(
+    @SerializedName("skor_ai") val skorAi: Int,
+    @SerializedName("feedback") val feedback: String,
+    @SerializedName("status_verifikasi") val statusVerifikasi: String
+)
+
 interface ApiService {
     @GET("course?select=*,users(nama_lengkap),enrollments(mahasiswa_id)")
     suspend fun getCourses(): List<Course>
@@ -115,8 +122,8 @@ interface ApiService {
     suspend fun updateAssessmentScore(
         @Query("mahasiswa_id") mId: String,
         @Query("question_id") qId: String,
-        @Body payload: Map<String, Any>
-    )
+        @Body payload: UpdateScoreRequest
+    ): Response<Unit>
 
     @GET("exam_attempts?select=*&order=attempt_number.desc")
     suspend fun getExamHistory(

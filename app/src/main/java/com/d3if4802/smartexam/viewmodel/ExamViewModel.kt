@@ -13,6 +13,7 @@ import com.d3if4802.smartexam.data.ExamAttempt
 import com.d3if4802.smartexam.data.Question
 import com.d3if4802.smartexam.data.RetrofitClient
 import com.d3if4802.smartexam.data.SubmitAnswerRequest
+import com.d3if4802.smartexam.data.UpdateScoreRequest
 import com.d3if4802.smartexam.db.AnswerDao
 import com.d3if4802.smartexam.db.AnswerEntity
 import com.google.ai.client.generativeai.GenerativeModel
@@ -253,57 +254,74 @@ class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
     private fun nilaiSemuaJawabanDenganAI(mahasiswaId: Int) {
         viewModelScope.launch {
             try {
+                val apiKey = BuildConfig.GEMINI_API_KEY
+                Log.d("CEK_AI", "1. Status API Key: ${if(apiKey.isNotBlank()) "AMAN" else "KOSONG"}")
+
+                if (apiKey.isBlank()) {
+                    Log.e("CEK_AI", "API Key KOSONG")
+                    return@launch
+                }
+
                 val generativeModel = GenerativeModel(
-                    modelName = "gemini-1.5-flash",
-                    apiKey = BuildConfig.GEMINI_API_KEY
+                    modelName = "gemini-2.5-flash",
+                    apiKey = apiKey
                 )
 
                 val localAnswers = _allAnswers.value
                 val daftarSoal = _questions.value
 
+                Log.d("CEK_AI", "2. Memulai AI")
+
                 for (jawaban in localAnswers) {
                     val soalTerkait = daftarSoal.find { it.id == jawaban.questionId }
                     if (soalTerkait != null) {
+                        Log.d("CEK_AI", "3. Proses Soal ID: ${soalTerkait.id}")
+
                         val prompt = """
-                            Kamu adalah dosen penguji yang profesional. Tugasmu menilai jawaban mahasiswa.
+                            Anda adalah sistem penilai ujian otomatis yang kaku. 
+                            Tugas Anda HANYA memberikan skor dan feedback berdasarkan data berikut:
                             
-                            SOAL: ${soalTerkait.text}
-                            KUNCI JAWABAN: ${soalTerkait.kunciJawaban ?: "Gunakan pengetahuan umum"}
-                            RUBRIK: ${soalTerkait.rubrikPenilaian ?: "Nilai maksimal 50"}
-                            JAWABAN MAHASISWA: ${jawaban.answerText}
+                            [SOAL]: ${soalTerkait.text}
+                            [KUNCI JAWABAN]: ${soalTerkait.kunciJawaban ?: "Nilai berdasarkan keakuratan dan logika."}
+                            [RUBRIK PENILAIAN]: ${soalTerkait.rubrikPenilaian ?: "Skor maksimal adalah 50."}
+                            [JAWABAN MAHASISWA]: ${jawaban.answerText}
                             
-                            ATURAN SUPER KETAT: Jawab HANYA dengan format persis di bawah ini, TANPA MARKDOWN atau simbol bintang (**) sama sekali:
-                            SKOR: [Tulis angka bulat saja antara 0 sampai 50]
-                            FEEDBACK: [Berikan 1-2 kalimat alasan objektif kenapa nilainya segitu]
+                            ATURAN WAJIB (JIKA DILANGGAR SISTEM AKAN ERROR):
+                            1. DILARANG KERAS menggunakan simbol bintang (**), *bold*, atau markdown apapun.
+                            2. DILARANG menambahkan kalimat sapaan, penjelasan tambahan, atau teks penutup.
+                            3. HANYA keluarkan 2 baris teks persis seperti format di bawah ini.
+                            
+                            SKOR: [Isi dengan 1 angka bulat antara 0 sampai 50]
+                            FEEDBACK: [Isi dengan 1-2 kalimat objektif alasan penilaian]
                         """.trimIndent()
 
                         val response = generativeModel.generateContent(prompt)
-                        val aiResult = response.text?.replace("*", "") ?: ""
+                        val aiResult = response.text?.replace("*", "")?.trim() ?: ""
+                        Log.d("CEK_AI", "4. Balasan Asli AI:\n$aiResult")
 
                         var skorAi = 0
                         var feedbackAi = "Gagal memproses feedback"
 
-                        if (aiResult.contains("SKOR:") && aiResult.contains("FEEDBACK:")) {
-                            try {
-                                val skorString = aiResult.substringAfter("SKOR:").substringBefore("FEEDBACK:").trim()
-                                skorAi = skorString.toIntOrNull() ?: 0
-                                feedbackAi = aiResult.substringAfter("FEEDBACK:").trim()
-                            } catch (e: Exception) {
-                                Log.e("CEK_AI", "Gagal parsing: $aiResult")
-                            }
+                        val regexSkor = Regex("(?i)SKOR:\\s*(\\d+)")
+                        val regexFeedback = Regex("(?i)FEEDBACK:\\s*(.+)", RegexOption.DOT_MATCHES_ALL)
+
+                        val matchSkor = regexSkor.find(aiResult)
+                        val matchFeedback = regexFeedback.find(aiResult)
+
+                        if (matchSkor != null && matchFeedback != null) {
+                            skorAi = matchSkor.groupValues[1].toIntOrNull() ?: 0
+                            feedbackAi = matchFeedback.groupValues[1].trim()
+                            Log.d("CEK_AI", "5. Sukses Parsing! Skor AI: $skorAi")
+                        } else {
+                            Log.e("CEK_AI", "5. Gagal Parsing! AI tidak mengikuti format.")
+                            feedbackAi = "Catatan Sistem: Format balasan AI salah -> $aiResult"
                         }
 
-                        updateSkorKeServer(
-                            mahasiswaId = mahasiswaId,
-                            questionId = soalTerkait.id,
-                            skorAi = skorAi,
-                            feedback = feedbackAi,
-                            status = "Dinilai AI"
-                        )
+                        updateSkorKeServer(mahasiswaId, soalTerkait.id, skorAi, feedbackAi, "Dinilai AI")
                     }
                 }
             } catch (e: Exception) {
-                Log.e("CEK_AI", "Error Gemini: ${e.message}")
+                Log.e("CEK_AI", "ERROR FATAL: ${e.message}")
             }
         }
     }
@@ -311,18 +329,21 @@ class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
     fun updateSkorKeServer(mahasiswaId: Int, questionId: Int, skorAi: Int, feedback: String, status: String) {
         viewModelScope.launch {
             try {
-                val payload = mapOf(
-                    "skor_ai" to skorAi,
-                    "feedback" to feedback,
-                    "status_verifikasi" to status
+                val payload = UpdateScoreRequest(
+                    skorAi = skorAi,
+                    feedback = feedback,
+                    statusVerifikasi = status
                 )
+
+                Log.d("CEK_AI", "6. Kirim ke Server")
                 RetrofitClient.apiService.updateAssessmentScore(
                     mId = "eq.$mahasiswaId",
                     qId = "eq.$questionId",
                     payload = payload
                 )
+                Log.d("CEK_AI", "7. Sukses Update DB")
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e("CEK_AI", "7. Gagal Update DB: ${e.message}")
             }
         }
     }
