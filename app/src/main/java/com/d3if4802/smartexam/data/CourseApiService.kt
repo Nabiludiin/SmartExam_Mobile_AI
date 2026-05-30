@@ -5,7 +5,9 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.Body
 import retrofit2.http.GET
+import retrofit2.http.PATCH
 import retrofit2.http.POST
+import retrofit2.http.Query
 
 // ==========================================
 // 1. KUMPULAN DATA CLASS (MODEL POSTGRESQL)
@@ -45,7 +47,13 @@ interface ApiService {
 
     // Endpoint POST untuk mengirim jawaban ke tabel ai_assessments
     @POST("ai_assessments")
+
     suspend fun submitAllAnswers(@Body answers: List<SubmitAnswerRequest>)
+    @PATCH("ai_assessments")
+    suspend fun updateAssessmentScore(
+        @Query("question_id") qId: String,
+        @Body payload: Map<String, Any>
+    )
 }
 
 // ==========================================

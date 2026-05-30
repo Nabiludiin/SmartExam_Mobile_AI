@@ -95,7 +95,16 @@ fun ResultScreen(
                             val cleanScore = extractedNumber?.toIntOrNull() ?: 0
 
                             // Jaga-jaga kalau AI halusinasi ngasih nilai 100 dari skala 10
-                            aiScores[answer.questionId] = if (cleanScore > 10) 10 else cleanScore
+                            val finalScore = if (cleanScore > 10) 10 else cleanScore
+                            aiScores[answer.questionId] = finalScore
+
+                            // MENGIRIM SKOR KE SERVER POSTGRESQL
+                            viewModel.updateSkorKeServer(
+                                questionId = answer.questionId,
+                                skorAi = finalScore,
+                                feedback = "Dinilai secara otomatis oleh Gemini 1.5",
+                                status = "Menunggu Verifikasi"
+                            )
 
                         } catch (e: Exception) {
                             Log.e("GEMINI_TEST", "Gemini Gagal Jalan! Penyebab: ${e.message}")

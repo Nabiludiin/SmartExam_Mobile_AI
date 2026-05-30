@@ -162,6 +162,28 @@ class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
             }
         }
     }
+    fun updateSkorKeServer(questionId: Int, skorAi: Int, feedback: String, status: String) {
+        viewModelScope.launch {
+            try {
+                // Membuat paket data (payload) untuk di-update
+                val payload = mapOf(
+                    "skor_ai" to skorAi,
+                    "feedback" to feedback,
+                    "status_verifikasi" to status
+                )
+
+                // Menembak API Retrofit untuk melakukan PATCH (Update)
+                com.d3if4802.smartexam.data.RetrofitClient.apiService.updateAssessmentScore(
+                    qId = "eq.$questionId", // Format PostgREST untuk WHERE question_id = X
+                    payload = payload
+                )
+
+                android.util.Log.d("UPDATE_SERVER", "Skor $skorAi untuk soal $questionId sukses dikirim!")
+            } catch (e: Exception) {
+                android.util.Log.e("UPDATE_SERVER", "Gagal mengirim skor: ${e.message}")
+            }
+        }
+    }
 }
 
 class ExamViewModelFactory(private val answerDao: AnswerDao) : ViewModelProvider.Factory {
