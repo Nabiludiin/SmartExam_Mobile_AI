@@ -14,10 +14,15 @@ import retrofit2.http.Query
 // ==========================================
 
 data class Course(
-    @SerializedName("course_id") val courseId: Int,
-    @SerializedName("kode_matkul") val kodeMatkul: String,
+    val id: Int,
     @SerializedName("nama_matkul") val namaMatkul: String,
-    @SerializedName("dosen_id") val dosenId: Int?
+    @SerializedName("kode_matkul") val kodeMatkul: String,
+    @SerializedName("dosen_id") val dosenId: Int?,
+    @SerializedName("users") val users: UserData? = null
+)
+
+data class UserData(
+    @SerializedName("nama_lengkap") val nama_lengkap: String
 )
 
 data class Question(
@@ -27,7 +32,6 @@ data class Question(
     @SerializedName("rubrik_penilaian") val rubrikPenilaian: String?
 )
 
-// Data class baru untuk mengirim jawaban ujian mahasiswa
 data class SubmitAnswerRequest(
     @SerializedName("mahasiswa_id") val mahasiswaId: Int,
     @SerializedName("question_id") val questionId: Int,
@@ -38,17 +42,15 @@ data class SubmitAnswerRequest(
 // 2. SATU INTERFACE UNTUK SEMUA API
 // ==========================================
 interface ApiService {
-
-    @GET("course")
+    @GET("course?select=*,users(nama_lengkap)")
     suspend fun getCourses(): List<Course>
 
     @GET("questions")
     suspend fun getQuestions(): List<Question>
 
-    // Endpoint POST untuk mengirim jawaban ke tabel ai_assessments
     @POST("ai_assessments")
-
     suspend fun submitAllAnswers(@Body answers: List<SubmitAnswerRequest>)
+
     @PATCH("ai_assessments")
     suspend fun updateAssessmentScore(
         @Query("question_id") qId: String,

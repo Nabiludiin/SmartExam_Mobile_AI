@@ -1,3 +1,28 @@
 <resources>
-    <string name="app_name">SmartExam</string>
+    <string name="app_name">Smart Exam</string>
+
+    <string name="nav_home">Home</string>
+    <string name="nav_course_management">Pengelolaan Mata Kuliah</string>
+    <string name="title_course_list">Daftar Mata Kuliah Saya</string>
+    <string name="subtitle_course_list">Temukan semua kelas yang kamu ikuti di sini dan mari lanjutkan progres belajarmu hari ini.</string>
+
+    <string name="hint_search_course">Masukkan nama mata kuliah</string>
+    <string name="label_category">Kategori</string>
+    <string name="label_display_data">Menampilkan %s data</string>
+    <string name="label_filter_by">Difilter berdasarkan :</string>
+    <string name="label_category_prefix">Kategori : </string>
+
+    <string name="btn_enter_class">Masuk Kelas</string>
+    <string name="btn_enter">Masuk</string>
+    <string name="label_dosen_id">Dosen ID: </string>
+    <string name="label_code">Kode: </string>
+    <string name="img_placeholder">img</string>
+
+    <string name="nav_kelas">Kelas</string>
+    <string name="nav_beranda">Beranda</string>
+    <string name="nav_profil">Profil</string>
+
+    <string name="error_network">Error Network</string>
+    <string name="course_not_found">Mata kuliah tidak ditemukan.</string>
+    <string name="dosen_not_set">Dosen Belum Diatur</string>
 </resources>
