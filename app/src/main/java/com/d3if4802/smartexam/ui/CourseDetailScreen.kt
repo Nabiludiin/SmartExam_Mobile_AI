@@ -1,6 +1,7 @@
 package com.d3if4802.smartexam.ui
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -8,8 +9,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Assignment
-import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.automirrored.filled.Assignment
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.People
@@ -19,17 +20,29 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.d3if4802.smartexam.R
 
-val ExamLightGray = Color(0xFFF8FAFC)
-val BadgeBlue = Color(0xFFE6F0FF)
-val BadgeTextBlue = Color(0xFF0056D2)
+private object DetailColors {
+    val BackgroundLight = Color(0xFFF8FAFC)
+    val PrimaryBlue = Color(0xFF0064B0)
+    val BadgeBlue = Color(0xFFE6F0FF)
+    val BadgeTextBlue = Color(0xFF0056D2)
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CourseDetailScreen(
+    namaMatkul: String = "Mata Kuliah",
+    kategori: String = "Lainnya",
+    namaDosen: String = "Dosen Pengampu",
+    jumlahMahasiswa: Int = 0,
+
     onBackClick: () -> Unit,
     onMateriClick: () -> Unit,
     onLatihanClick: () -> Unit
@@ -37,25 +50,42 @@ fun CourseDetailScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("SMART EXAM", fontWeight = FontWeight.ExtraBold, color = ExamDeepBlue, fontSize = 18.sp) },
+                title = {
+                    Image(
+                        painter = painterResource(id = R.drawable.logo_smartexam),
+                        contentDescription = "Logo Smart Exam",
+                        modifier = Modifier
+                            .height(32.dp)
+                            .padding(start = 4.dp),
+                        contentScale = ContentScale.Fit
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
-                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Kembali", tint = ExamDeepBlue)
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Kembali",
+                            tint = DetailColors.PrimaryBlue
+                        )
                     }
                 },
                 actions = {
                     Box(
                         modifier = Modifier
                             .padding(end = 16.dp)
-                            .size(32.dp)
+                            .size(36.dp)
                             .clip(CircleShape)
-                            .background(Color.Gray)
-                    )
+                            .background(Color.LightGray),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.Person, contentDescription = "Profile", tint = Color.White)
+                    }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = ExamLightGray)
+                // Background header disamakan menjadi Putih
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
             )
         },
-        containerColor = ExamLightGray
+        containerColor = DetailColors.BackgroundLight
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -63,14 +93,6 @@ fun CourseDetailScreen(
                 .padding(paddingValues)
                 .padding(horizontal = 20.dp)
         ) {
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = "Home > Pengelolaan Mata Kuliah > Algoritma Pemrograman",
-                color = Color.Gray,
-                fontSize = 12.sp
-            )
-
             Spacer(modifier = Modifier.height(24.dp))
 
             Card(
@@ -86,7 +108,7 @@ fun CourseDetailScreen(
                         verticalAlignment = Alignment.Top
                     ) {
                         Text(
-                            text = "Algoritma Pemrograman",
+                            text = namaMatkul,
                             fontWeight = FontWeight.Bold,
                             fontSize = 24.sp,
                             lineHeight = 30.sp,
@@ -97,16 +119,16 @@ fun CourseDetailScreen(
                         Spacer(modifier = Modifier.width(12.dp))
 
                         Surface(
-                            color = BadgeBlue,
+                            color = DetailColors.BadgeBlue,
                             shape = RoundedCornerShape(8.dp)
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Default.Science, contentDescription = null, modifier = Modifier.size(14.dp), tint = BadgeTextBlue)
+                                Icon(Icons.Default.Science, contentDescription = null, modifier = Modifier.size(14.dp), tint = DetailColors.BadgeTextBlue)
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("Projek", color = BadgeTextBlue, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Text(text = kategori, color = DetailColors.BadgeTextBlue, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -122,12 +144,12 @@ fun CourseDetailScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.Person, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Albert Mandala, S.Pd", fontSize = 13.sp, color = Color.DarkGray)
+                            Text(text = namaDosen, fontSize = 13.sp, color = Color.DarkGray)
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.People, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("34 Mahasiswa", fontSize = 13.sp, color = Color.DarkGray)
+                            Text(text = "$jumlahMahasiswa Mahasiswa", fontSize = 13.sp, color = Color.DarkGray)
                         }
                     }
                 }
@@ -138,7 +160,7 @@ fun CourseDetailScreen(
             MenuItemCard(
                 title = "Materi",
                 description = "Pelajari modul dan bahan bacaan",
-                icon = Icons.Default.MenuBook,
+                icon = Icons.AutoMirrored.Filled.MenuBook,
                 onClick = onMateriClick
             )
 
@@ -147,7 +169,7 @@ fun CourseDetailScreen(
             MenuItemCard(
                 title = "Latihan",
                 description = "Kerjakan soal essay AI",
-                icon = Icons.Default.Assignment,
+                icon = Icons.AutoMirrored.Filled.Assignment,
                 onClick = onLatihanClick
             )
         }
@@ -175,11 +197,11 @@ fun MenuItemCard(
         ) {
             Surface(
                 shape = CircleShape,
-                color = BadgeBlue,
+                color = DetailColors.BadgeBlue,
                 modifier = Modifier.size(48.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Icon(icon, contentDescription = null, tint = BadgeTextBlue)
+                    Icon(icon, contentDescription = null, tint = DetailColors.BadgeTextBlue)
                 }
             }
             Spacer(modifier = Modifier.width(16.dp))

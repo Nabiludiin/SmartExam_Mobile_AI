@@ -18,8 +18,13 @@ data class Course(
     @SerializedName("nama_matkul") val namaMatkul: String,
     @SerializedName("kode_matkul") val kodeMatkul: String,
     @SerializedName("dosen_id") val dosenId: Int?,
-    @SerializedName("users") val users: UserData? = null
-)
+    @SerializedName("kategori") val kategori: String? = "Lainnya",
+    val users: UserData? = null,
+    @SerializedName("enrollments") val dataEnrollment: List<DataEnrollment>? = null
+) {
+    val jumlahMahasiswa: Int
+        get() = dataEnrollment?.size ?: 0
+}
 
 data class UserData(
     @SerializedName("nama_lengkap") val nama_lengkap: String
@@ -32,6 +37,10 @@ data class Question(
     @SerializedName("rubrik_penilaian") val rubrikPenilaian: String?
 )
 
+data class DataEnrollment(
+    @SerializedName("mahasiswa_id") val mahasiswaId: Int
+)
+
 data class SubmitAnswerRequest(
     @SerializedName("mahasiswa_id") val mahasiswaId: Int,
     @SerializedName("question_id") val questionId: Int,
@@ -42,7 +51,7 @@ data class SubmitAnswerRequest(
 // 2. SATU INTERFACE UNTUK SEMUA API
 // ==========================================
 interface ApiService {
-    @GET("course?select=*,users(nama_lengkap)")
+    @GET("course?select=*,users(nama_lengkap),enrollments(mahasiswa_id)")
     suspend fun getCourses(): List<Course>
 
     @GET("questions")
