@@ -47,6 +47,17 @@ data class SubmitAnswerRequest(
     @SerializedName("jawaban_mahasiswa") val jawabanMahasiswa: String
 )
 
+data class ExamAttempt(
+    @SerializedName("attempt_id") val attemptId: Int,
+    @SerializedName("attempt_number") val attemptNumber: Int,
+    @SerializedName("score_absolute") val scoreAbsolute: Int,
+    @SerializedName("score_max") val scoreMax: Int,
+    @SerializedName("score_percentage") val scorePercentage: Double,
+    @SerializedName("tanggal_mulai") val tanggalMulai: String,
+    @SerializedName("ip_address") val ipAddress: String,
+    @SerializedName("status") val status: String
+)
+
 // ==========================================
 // 2. SATU INTERFACE UNTUK SEMUA API
 // ==========================================
@@ -65,6 +76,11 @@ interface ApiService {
         @Query("question_id") qId: String,
         @Body payload: Map<String, Any>
     )
+    @GET("exam_attempts?select=*&order=attempt_number.desc")
+    suspend fun getExamHistory(
+        @Query("mahasiswa_id") mahasiswaId: String,
+        @Query("exam_id") examId: String
+    ): List<ExamAttempt>
 }
 
 // ==========================================

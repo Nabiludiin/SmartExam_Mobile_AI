@@ -3,6 +3,7 @@ package com.d3if4802.smartexam.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.d3if4802.smartexam.data.ExamAttempt
 import com.d3if4802.smartexam.data.Question
 import com.d3if4802.smartexam.data.RetrofitClient
 import com.d3if4802.smartexam.db.AnswerDao
@@ -35,12 +36,32 @@ class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
     private val _isTimeUp = MutableStateFlow(false)
     val isTimeUp: StateFlow<Boolean> = _isTimeUp.asStateFlow()
 
+    // --- STATE BARU UNTUK RIWAYAT UJIAN ---
+    private val _historyList = MutableStateFlow<List<ExamAttempt>>(emptyList())
+    val historyList: StateFlow<List<ExamAttempt>> = _historyList.asStateFlow()
+
     private var timerJob: Job? = null
 
     init {
         // 2. OTOMATIS AMBIL SOAL SAAT MASUK KE LAYAR UJIAN
         fetchQuestionsFromServer()
         fetchAllAnswers()
+    }
+
+    // --- FUNGSI BARU UNTUK MENARIK DATA RIWAYAT ---
+    fun fetchExamHistory(mahasiswaId: Int, examId: Int) {
+        viewModelScope.launch {
+            try {
+                // eq. artinya "equal" (sama dengan) di PostgREST
+                val response = RetrofitClient.apiService.getExamHistory(
+                    mahasiswaId = "eq.$mahasiswaId",
+                    examId = "eq.$examId"
+                )
+                _historyList.value = response
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
     }
 
     // 3. FUNGSI UNTUK MENYEDOT DATA DARI POSTGREST
@@ -162,19 +183,18 @@ class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
             }
         }
     }
+
     fun updateSkorKeServer(questionId: Int, skorAi: Int, feedback: String, status: String) {
         viewModelScope.launch {
             try {
-                // Membuat paket data (payload) untuk di-update
                 val payload = mapOf(
                     "skor_ai" to skorAi,
                     "feedback" to feedback,
                     "status_verifikasi" to status
                 )
 
-                // Menembak API Retrofit untuk melakukan PATCH (Update)
                 com.d3if4802.smartexam.data.RetrofitClient.apiService.updateAssessmentScore(
-                    qId = "eq.$questionId", // Format PostgREST untuk WHERE question_id = X
+                    qId = "eq.$questionId",
                     payload = payload
                 )
 
