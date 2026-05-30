@@ -1,13 +1,21 @@
 package com.d3if4802.smartexam.viewmodel
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.d3if4802.smartexam.BuildConfig
+import com.d3if4802.smartexam.data.AssessmentResult
+import com.d3if4802.smartexam.data.CourseMaterial
+import com.d3if4802.smartexam.data.CreateAttemptRequest
+import com.d3if4802.smartexam.data.Exam
 import com.d3if4802.smartexam.data.ExamAttempt
 import com.d3if4802.smartexam.data.Question
 import com.d3if4802.smartexam.data.RetrofitClient
+import com.d3if4802.smartexam.data.SubmitAnswerRequest
 import com.d3if4802.smartexam.db.AnswerDao
 import com.d3if4802.smartexam.db.AnswerEntity
+import com.google.ai.client.generativeai.GenerativeModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,7 +25,12 @@ import kotlinx.coroutines.launch
 
 class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
 
-    // 1. STATE UNTUK MENYIMPAN SOAL DARI SERVER
+    private val _materialList = MutableStateFlow<List<CourseMaterial>>(emptyList())
+    val materialList: StateFlow<List<CourseMaterial>> = _materialList.asStateFlow()
+
+    private val _examList = MutableStateFlow<List<Exam>>(emptyList())
+    val examList: StateFlow<List<Exam>> = _examList.asStateFlow()
+
     private val _questions = MutableStateFlow<List<Question>>(emptyList())
     val questions: StateFlow<List<Question>> = _questions.asStateFlow()
 
@@ -36,23 +49,47 @@ class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
     private val _isTimeUp = MutableStateFlow(false)
     val isTimeUp: StateFlow<Boolean> = _isTimeUp.asStateFlow()
 
-    // --- STATE BARU UNTUK RIWAYAT UJIAN ---
     private val _historyList = MutableStateFlow<List<ExamAttempt>>(emptyList())
     val historyList: StateFlow<List<ExamAttempt>> = _historyList.asStateFlow()
 
+    private val _assessmentResults = MutableStateFlow<List<AssessmentResult>>(emptyList())
+    val assessmentResults: StateFlow<List<AssessmentResult>> = _assessmentResults.asStateFlow()
+
+    var activeExamId: Int = 0
     private var timerJob: Job? = null
+    private var isSubmitting = false
 
     init {
-        // 2. OTOMATIS AMBIL SOAL SAAT MASUK KE LAYAR UJIAN
-        fetchQuestionsFromServer()
         fetchAllAnswers()
     }
 
-    // --- FUNGSI BARU UNTUK MENARIK DATA RIWAYAT ---
+    fun fetchMaterialsByCourse(courseId: Int) {
+        viewModelScope.launch {
+            try {
+                val filter = "eq.$courseId"
+                val response = RetrofitClient.apiService.getMaterialsByCourse(filter)
+                _materialList.value = response
+            } catch (e: Exception) {
+                Log.e("CEK_API", "Error: ${e.message}")
+            }
+        }
+    }
+
+    fun fetchExamsByCourse(courseId: Int) {
+        viewModelScope.launch {
+            try {
+                val filter = "eq.$courseId"
+                val response = RetrofitClient.apiService.getExamsByCourse(filter)
+                _examList.value = response
+            } catch (e: Exception) {
+                Log.e("CEK_API", "Error: ${e.message}")
+            }
+        }
+    }
+
     fun fetchExamHistory(mahasiswaId: Int, examId: Int) {
         viewModelScope.launch {
             try {
-                // eq. artinya "equal" (sama dengan) di PostgREST
                 val response = RetrofitClient.apiService.getExamHistory(
                     mahasiswaId = "eq.$mahasiswaId",
                     examId = "eq.$examId"
@@ -64,22 +101,30 @@ class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
         }
     }
 
-    // 3. FUNGSI UNTUK MENYEDOT DATA DARI POSTGREST
-    private fun fetchQuestionsFromServer() {
+    fun fetchQuestionsFromServer(examFilter: String) {
         viewModelScope.launch {
             try {
-                // Tarik data dari database lewat RetrofitClient
-                val response = RetrofitClient.apiService.getQuestions()
+                val response = RetrofitClient.apiService.getQuestions(examFilter)
                 _questions.value = response
 
-                // Jika soal berhasil didapat, langsung buka soal pertama dan jalankan timer
                 if (response.isNotEmpty()) {
                     loadJawaban(0)
                     startTimer()
                 }
             } catch (e: Exception) {
-                // Pantau Logcat jika IP salah atau koneksi terputus
-                e.printStackTrace()
+                Log.e("CEK_API", "Error: $e")
+            }
+        }
+    }
+
+    fun fetchAssessmentResults(mahasiswaId: Int) {
+        viewModelScope.launch {
+            try {
+                val filter = "eq.$mahasiswaId"
+                val response = RetrofitClient.apiService.getAssessmentResults(filter)
+                _assessmentResults.value = response
+            } catch (e: Exception) {
+                Log.e("CEK_API", "Error: ${e.message}")
             }
         }
     }
@@ -88,7 +133,7 @@ class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
         timerJob?.cancel()
         _isTimeUp.value = false
         timerJob = viewModelScope.launch {
-            var timeInSeconds = 45 * 60 // 45 Menit
+            var timeInSeconds = 45 * 60
             while (timeInSeconds > 0) {
                 delay(1000L)
                 timeInSeconds--
@@ -105,7 +150,9 @@ class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
             answerDao.deleteAllAnswers()
             _jawabanState.value = ""
             _currentQuestionIndex.value = 0
-            startTimer()
+            _questions.value = emptyList()
+            timerJob?.cancel()
+            isSubmitting = false
         }
     }
 
@@ -124,7 +171,6 @@ class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
 
     fun rubahIndeksSoal(indeksBaru: Int) {
         val currentQuestions = _questions.value
-        // Cek validasi array agar aplikasi tidak force close
         if (currentQuestions.isNotEmpty() && indeksBaru in currentQuestions.indices) {
             _currentQuestionIndex.value = indeksBaru
             loadJawaban(indeksBaru)
@@ -163,28 +209,106 @@ class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
         }
     }
 
-    // 4. FUNGSI UNTUK MENGIRIM SEMUA JAWABAN KE SERVER SAAT UJIAN SELESAI
     fun kirimSemuaJawabanKeServer(mahasiswaId: Int) {
+        if (isSubmitting) return
+        isSubmitting = true
+
         viewModelScope.launch {
             try {
                 val localAnswers = _allAnswers.value
                 val payload = localAnswers.map { answerEntity ->
-                    com.d3if4802.smartexam.data.SubmitAnswerRequest(
+                    SubmitAnswerRequest(
                         mahasiswaId = mahasiswaId,
                         questionId = answerEntity.questionId,
                         jawabanMahasiswa = answerEntity.answerText
                     )
                 }
+
                 if (payload.isNotEmpty()) {
-                    RetrofitClient.apiService.submitAllAnswers(payload)
+                    RetrofitClient.apiService.submitAllAnswers(payload, "resolution=merge-duplicates")
                 }
+
+                val percobaanKe = _historyList.value.size + 1
+                val historyPayload = CreateAttemptRequest(
+                    examId = activeExamId,
+                    mahasiswaId = mahasiswaId,
+                    attemptNumber = percobaanKe,
+                    scoreAbsolute = 0,
+                    scoreMax = 50,
+                    scorePercentage = 0.0,
+                    ipAddress = "192.168.0.55",
+                    status = "Belum Ditinjau"
+                )
+
+                RetrofitClient.apiService.createExamAttempt(historyPayload)
+
+                nilaiSemuaJawabanDenganAI(mahasiswaId)
+
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e("CEK_API", "Error: ${e.message}")
             }
         }
     }
 
-    fun updateSkorKeServer(questionId: Int, skorAi: Int, feedback: String, status: String) {
+    private fun nilaiSemuaJawabanDenganAI(mahasiswaId: Int) {
+        viewModelScope.launch {
+            try {
+                val generativeModel = GenerativeModel(
+                    modelName = "gemini-1.5-flash",
+                    apiKey = BuildConfig.GEMINI_API_KEY
+                )
+
+                val localAnswers = _allAnswers.value
+                val daftarSoal = _questions.value
+
+                for (jawaban in localAnswers) {
+                    val soalTerkait = daftarSoal.find { it.id == jawaban.questionId }
+                    if (soalTerkait != null) {
+                        val prompt = """
+                            Kamu adalah dosen penguji yang profesional. Tugasmu menilai jawaban mahasiswa.
+                            
+                            SOAL: ${soalTerkait.text}
+                            KUNCI JAWABAN: ${soalTerkait.kunciJawaban ?: "Gunakan pengetahuan umum"}
+                            RUBRIK: ${soalTerkait.rubrikPenilaian ?: "Nilai maksimal 50"}
+                            JAWABAN MAHASISWA: ${jawaban.answerText}
+                            
+                            ATURAN SUPER KETAT: Jawab HANYA dengan format persis di bawah ini, TANPA MARKDOWN atau simbol bintang (**) sama sekali:
+                            SKOR: [Tulis angka bulat saja antara 0 sampai 50]
+                            FEEDBACK: [Berikan 1-2 kalimat alasan objektif kenapa nilainya segitu]
+                        """.trimIndent()
+
+                        val response = generativeModel.generateContent(prompt)
+                        val aiResult = response.text?.replace("*", "") ?: ""
+
+                        var skorAi = 0
+                        var feedbackAi = "Gagal memproses feedback"
+
+                        if (aiResult.contains("SKOR:") && aiResult.contains("FEEDBACK:")) {
+                            try {
+                                val skorString = aiResult.substringAfter("SKOR:").substringBefore("FEEDBACK:").trim()
+                                skorAi = skorString.toIntOrNull() ?: 0
+                                feedbackAi = aiResult.substringAfter("FEEDBACK:").trim()
+                            } catch (e: Exception) {
+                                Log.e("CEK_AI", "Gagal parsing: $aiResult")
+                            }
+                        }
+
+                        updateSkorKeServer(
+                            mahasiswaId = mahasiswaId,
+                            questionId = soalTerkait.id,
+                            skorAi = skorAi,
+                            feedback = feedbackAi,
+                            status = "Dinilai AI"
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("CEK_AI", "Error Gemini: ${e.message}")
+            }
+        }
+    }
+
+    fun updateSkorKeServer(mahasiswaId: Int, questionId: Int, skorAi: Int, feedback: String, status: String) {
         viewModelScope.launch {
             try {
                 val payload = mapOf(
@@ -192,15 +316,13 @@ class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
                     "feedback" to feedback,
                     "status_verifikasi" to status
                 )
-
-                com.d3if4802.smartexam.data.RetrofitClient.apiService.updateAssessmentScore(
+                RetrofitClient.apiService.updateAssessmentScore(
+                    mId = "eq.$mahasiswaId",
                     qId = "eq.$questionId",
                     payload = payload
                 )
-
-                android.util.Log.d("UPDATE_SERVER", "Skor $skorAi untuk soal $questionId sukses dikirim!")
             } catch (e: Exception) {
-                android.util.Log.e("UPDATE_SERVER", "Gagal mengirim skor: ${e.message}")
+                e.printStackTrace()
             }
         }
     }

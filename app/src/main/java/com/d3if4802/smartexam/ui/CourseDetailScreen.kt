@@ -5,8 +5,10 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Assignment
@@ -22,11 +24,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.d3if4802.smartexam.R
+import com.d3if4802.smartexam.data.CourseMaterial
+import com.d3if4802.smartexam.data.Exam
 
 private object DetailColors {
     val BackgroundLight = Color(0xFFF8FAFC)
@@ -42,10 +45,12 @@ fun CourseDetailScreen(
     kategori: String = "Lainnya",
     namaDosen: String = "Dosen Pengampu",
     jumlahMahasiswa: Int = 0,
+    daftarUjian: List<Exam> = emptyList(),
+    daftarMateri: List<CourseMaterial> = emptyList(),
 
     onBackClick: () -> Unit,
-    onMateriClick: () -> Unit,
-    onLatihanClick: () -> Unit
+    onMateriClick: (materiId: Int) -> Unit,
+    onLatihanClick: (examId: Int) -> Unit
 ) {
     Scaffold(
         topBar = {
@@ -81,7 +86,6 @@ fun CourseDetailScreen(
                         Icon(Icons.Default.Person, contentDescription = "Profile", tint = Color.White)
                     }
                 },
-                // Background header disamakan menjadi Putih
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
             )
         },
@@ -91,6 +95,7 @@ fun CourseDetailScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
         ) {
             Spacer(modifier = Modifier.height(24.dp))
@@ -115,9 +120,7 @@ fun CourseDetailScreen(
                             color = Color.Black,
                             modifier = Modifier.weight(1f)
                         )
-
                         Spacer(modifier = Modifier.width(12.dp))
-
                         Surface(
                             color = DetailColors.BadgeBlue,
                             shape = RoundedCornerShape(8.dp)
@@ -155,23 +158,45 @@ fun CourseDetailScreen(
                 }
             }
 
+            Spacer(modifier = Modifier.height(32.dp))
+
+            Text(text = "Materi Pembelajaran", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.Black)
+            Spacer(modifier = Modifier.height(12.dp))
+
+            if (daftarMateri.isEmpty()) {
+                Text(text = "Belum ada materi dari dosen.", color = Color.Gray, fontSize = 14.sp)
+            } else {
+                daftarMateri.forEach { materi ->
+                    MenuItemCard(
+                        title = materi.judulMateri,
+                        description = "Format: ${materi.tipeMateri}",
+                        icon = Icons.AutoMirrored.Filled.MenuBook,
+                        onClick = { onMateriClick(materi.materiId) }
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+            }
+
             Spacer(modifier = Modifier.height(24.dp))
 
-            MenuItemCard(
-                title = "Materi",
-                description = "Pelajari modul dan bahan bacaan",
-                icon = Icons.AutoMirrored.Filled.MenuBook,
-                onClick = onMateriClick
-            )
+            Text(text = "Daftar Ujian & Latihan", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.Black)
+            Spacer(modifier = Modifier.height(12.dp))
 
-            Spacer(modifier = Modifier.height(16.dp))
+            if (daftarUjian.isEmpty()) {
+                Text(text = "Belum ada ujian yang dibuat.", color = Color.Gray, fontSize = 14.sp)
+            } else {
+                daftarUjian.forEach { ujian ->
+                    MenuItemCard(
+                        title = ujian.judulUjian,
+                        description = "Tipe: ${ujian.tipeUjian}",
+                        icon = Icons.AutoMirrored.Filled.Assignment,
+                        onClick = { onLatihanClick(ujian.examId) }
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+            }
 
-            MenuItemCard(
-                title = "Latihan",
-                description = "Kerjakan soal essay AI",
-                icon = Icons.AutoMirrored.Filled.Assignment,
-                onClick = onLatihanClick
-            )
+            Spacer(modifier = Modifier.height(32.dp))
         }
     }
 }

@@ -5,16 +5,13 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.Body
 import retrofit2.http.GET
+import retrofit2.http.Header
 import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.Query
 
-// ==========================================
-// 1. KUMPULAN DATA CLASS (MODEL POSTGRESQL)
-// ==========================================
-
 data class Course(
-    val id: Int,
+    @SerializedName(value = "id", alternate = ["course_id"]) val id: Int,
     @SerializedName("nama_matkul") val namaMatkul: String,
     @SerializedName("kode_matkul") val kodeMatkul: String,
     @SerializedName("dosen_id") val dosenId: Int?,
@@ -30,8 +27,24 @@ data class UserData(
     @SerializedName("nama_lengkap") val nama_lengkap: String
 )
 
+data class CourseMaterial(
+    @SerializedName("materi_id") val materiId: Int,
+    @SerializedName("course_id") val courseId: Int,
+    @SerializedName("judul_materi") val judulMateri: String,
+    @SerializedName("tipe_materi") val tipeMateri: String,
+    @SerializedName("file_url") val fileUrl: String?
+)
+
+data class Exam(
+    @SerializedName("exam_id") val examId: Int,
+    @SerializedName("course_id") val courseId: Int,
+    @SerializedName("judul_ujian") val judulUjian: String,
+    @SerializedName("tipe_ujian") val tipeUjian: String
+)
+
 data class Question(
     @SerializedName("question_id") val id: Int,
+    @SerializedName("exam_id") val examId: Int,
     @SerializedName("teks_soal") val text: String,
     @SerializedName("kunci_jawaban") val kunciJawaban: String?,
     @SerializedName("rubrik_penilaian") val rubrikPenilaian: String?
@@ -58,36 +71,69 @@ data class ExamAttempt(
     @SerializedName("status") val status: String
 )
 
-// ==========================================
-// 2. SATU INTERFACE UNTUK SEMUA API
-// ==========================================
+data class CreateAttemptRequest(
+    @SerializedName("exam_id") val examId: Int,
+    @SerializedName("mahasiswa_id") val mahasiswaId: Int,
+    @SerializedName("attempt_number") val attemptNumber: Int,
+    @SerializedName("score_absolute") val scoreAbsolute: Int,
+    @SerializedName("score_max") val scoreMax: Int,
+    @SerializedName("score_percentage") val scorePercentage: Double,
+    @SerializedName("ip_address") val ipAddress: String,
+    @SerializedName("status") val status: String
+)
+
+data class AssessmentResult(
+    @SerializedName("assessments_id") val assessmentsId: Int,
+    @SerializedName("question_id") val questionId: Int,
+    @SerializedName("jawaban_mahasiswa") val jawabanMahasiswa: String,
+    @SerializedName("skor_ai") val skorAi: Int?,
+    @SerializedName("feedback") val feedback: String?,
+    @SerializedName("status_verifikasi") val statusVerifikasi: String?,
+    @SerializedName("questions") val question: Question? = null
+)
+
 interface ApiService {
     @GET("course?select=*,users(nama_lengkap),enrollments(mahasiswa_id)")
     suspend fun getCourses(): List<Course>
 
-    @GET("questions")
-    suspend fun getQuestions(): List<Question>
+    @GET("materi")
+    suspend fun getMaterialsByCourse(@Query("course_id", encoded = true) courseId: String): List<CourseMaterial>
 
-    @POST("ai_assessments")
-    suspend fun submitAllAnswers(@Body answers: List<SubmitAnswerRequest>)
+    @GET("exams")
+    suspend fun getExamsByCourse(@Query("course_id", encoded = true) courseId: String): List<Exam>
+
+    @GET("questions")
+    suspend fun getQuestions(@Query("exam_id", encoded = true) examId: String): List<Question>
+
+    @POST("ai_assessments?on_conflict=mahasiswa_id,question_id")
+    suspend fun submitAllAnswers(
+        @Body answers: List<SubmitAnswerRequest>,
+        @Header("Prefer") prefer: String = "resolution=merge-duplicates"
+    )
 
     @PATCH("ai_assessments")
     suspend fun updateAssessmentScore(
+        @Query("mahasiswa_id") mId: String,
         @Query("question_id") qId: String,
         @Body payload: Map<String, Any>
     )
+
     @GET("exam_attempts?select=*&order=attempt_number.desc")
     suspend fun getExamHistory(
         @Query("mahasiswa_id") mahasiswaId: String,
         @Query("exam_id") examId: String
     ): List<ExamAttempt>
+
+    @POST("exam_attempts")
+    suspend fun createExamAttempt(@Body attemptData: CreateAttemptRequest)
+
+    @GET("ai_assessments?select=*,questions(*)")
+    suspend fun getAssessmentResults(
+        @Query("mahasiswa_id") mahasiswaId: String
+    ): List<AssessmentResult>
 }
 
-// ==========================================
-// 3. RETROFIT CLIENT (JEMBATAN UTAMA)
-// ==========================================
 object RetrofitClient {
-    // Ganti dengan IP aslimu yang baru
     private const val BASE_URL = "http://10.65.17.192:3000/"
 
     val apiService: ApiService by lazy {

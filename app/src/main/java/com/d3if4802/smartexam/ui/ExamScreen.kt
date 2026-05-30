@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -98,16 +99,31 @@ fun ExamScreen(
             containerColor = ExamBackground
         ) { paddingValues ->
 
-            // 1. PROTEKSI LOADING: Jangan tampilkan soal kalau array masih kosong (sedang nembak API)
             if (questions.isEmpty()) {
                 Box(
                     modifier = Modifier.fillMaxSize().padding(paddingValues),
                     contentAlignment = Alignment.Center
                 ) {
-                    CircularProgressIndicator(color = ExamDeepBlue)
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator(color = ExamDeepBlue)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "Mencari soal atau terjadi Error API...\n\nJika layar ini tampil terlalu lama, berarti terjadi error tipe data (cek Logcat) atau soal belum ada di database.",
+                            color = ExamTextGray,
+                            fontSize = 14.sp,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(horizontal = 32.dp)
+                        )
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Button(
+                            onClick = { onFinishExam() },
+                            colors = ButtonDefaults.buttonColors(containerColor = ExamOrange)
+                        ) {
+                            Text("Kembali", color = Color.White)
+                        }
+                    }
                 }
             } else {
-                // 2. SOAL SUDAH DIUNDUH: Tampilkan layout
                 Column(
                     modifier = Modifier
                         .fillMaxSize()

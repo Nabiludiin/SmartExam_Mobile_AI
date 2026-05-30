@@ -68,7 +68,6 @@ fun CourseListScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
 
-    // LOGIKA FILTER YANG BENAR DAN AMAN
     val filteredCourses = allCourses.filter { course ->
         val matchesSearch = course.namaMatkul.contains(searchQuery, ignoreCase = true)
 
