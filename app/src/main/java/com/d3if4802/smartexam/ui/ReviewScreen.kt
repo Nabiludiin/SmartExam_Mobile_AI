@@ -23,9 +23,11 @@ import com.d3if4802.smartexam.viewmodel.ExamViewModel
 fun ReviewScreen(
     viewModel: ExamViewModel,
     mahasiswaId: Int,
+    examId: Int,
     onBackClick: () -> Unit
 ) {
-    val assessments by viewModel.assessmentResults.collectAsState()
+    val allAssessments by viewModel.assessmentResults.collectAsState()
+    val assessments = allAssessments.filter { it.question?.examId == examId }
 
     LaunchedEffect(mahasiswaId) {
         viewModel.fetchAssessmentResults(mahasiswaId)
@@ -39,7 +41,7 @@ fun ReviewScreen(
                         text = "Pembahasan & Nilai",
                         fontWeight = FontWeight.Bold,
                         fontSize = 20.sp,
-                        color = Color.Black // Mengunci warna teks agar tetap tebal dan jelas
+                        color = Color.Black
                     )
                 },
                 navigationIcon = {
@@ -47,7 +49,7 @@ fun ReviewScreen(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Kembali",
-                            tint = Color(0xFF0064B0) // Menyamakan warna ikon panah dengan layar lain
+                            tint = Color(0xFF0064B0)
                         )
                     }
                 },

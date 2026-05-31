@@ -29,10 +29,13 @@ import com.d3if4802.smartexam.data.ExamAttempt
 @Composable
 fun ViewExamScreen(
     historyList: List<ExamAttempt>,
+    maxAttempts: Int = 1,
     onBackClick: () -> Unit,
     onStartTestClick: () -> Unit,
     onReviewClick: () -> Unit
 ) {
+    val canStartTest = historyList.size < maxAttempts
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -78,17 +81,32 @@ fun ViewExamScreen(
                 shadowElevation = 8.dp,
                 color = Color.White
             ) {
-                PaddingValues(horizontal = 24.dp, vertical = 16.dp).let {
-                    Button(
-                        onClick = onStartTestClick,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(it)
-                            .height(50.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0064B0)),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text("Mulai Tes", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                PaddingValues(horizontal = 24.dp, vertical = 16.dp).let { padding ->
+                    if (canStartTest) {
+                        Button(
+                            onClick = onStartTestClick,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(padding)
+                                .height(50.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0064B0)),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("Mulai Tes (Sisa: ${maxAttempts - historyList.size})", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        }
+                    } else {
+                        Button(
+                            onClick = { },
+                            enabled = false,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(padding)
+                                .height(50.dp),
+                            colors = ButtonDefaults.buttonColors(disabledContainerColor = Color(0xFFE2E8F0)),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("Batas Percobaan Habis", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
+                        }
                     }
                 }
             }
@@ -104,7 +122,14 @@ fun ViewExamScreen(
         ) {
             item {
                 Spacer(modifier = Modifier.height(8.dp))
-                Text("Riwayat Percobaan", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Riwayat Percobaan", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                    Text("${historyList.size}/$maxAttempts", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
+                }
                 Spacer(modifier = Modifier.height(16.dp))
             }
 

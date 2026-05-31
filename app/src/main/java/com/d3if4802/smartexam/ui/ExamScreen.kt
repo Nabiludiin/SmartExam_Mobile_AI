@@ -14,9 +14,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -63,6 +64,10 @@ fun ExamScreen(
     val isTimeUp by viewModel.isTimeUp.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val totalQuestions = questions.size
+
+    val examList by viewModel.examList.collectAsState()
+    val currentExam = examList.find { it.examId == examId }
+    val examTitle = currentExam?.judulUjian ?: "Ujian"
 
     LaunchedEffect(examId) {
         viewModel.resetExamState()
@@ -108,6 +113,7 @@ fun ExamScreen(
         Scaffold(
             topBar = {
                 ExamTopAppBar(
+                    title = examTitle,
                     timerText = timeLeft,
                     onMenuClick = { scope.launch { drawerState.open() } }
                 )
@@ -281,7 +287,7 @@ fun ExamScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ExamTopAppBar(timerText: String, onMenuClick: () -> Unit) {
+fun ExamTopAppBar(title: String, timerText: String, onMenuClick: () -> Unit) {
     val isWarning = timerText.startsWith("00:") && timerText != "Tanpa Waktu"
     val timerColor = when {
         timerText == "Tanpa Waktu" -> Color(0xFF64748B)
@@ -294,7 +300,14 @@ fun ExamTopAppBar(timerText: String, onMenuClick: () -> Unit) {
                 Icon(imageVector = Icons.Default.Menu, contentDescription = "Menu")
             }
         },
-        title = { Text("Aptitude Test", fontWeight = FontWeight.Bold) },
+        title = {
+            Text(
+                text = title,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        },
         actions = {
             Surface(
                 color = timerColor,
@@ -390,13 +403,12 @@ fun ExamBottomNavigationBar(onNavClick: () -> Unit) {
     BottomAppBar(containerColor = Color.White, modifier = Modifier.height(80.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-            horizontalArrangement = Arrangement.SpaceAround, verticalAlignment = Alignment.CenterVertically
+            horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically
         ) {
-            ExamBottomNavItem(icon = Icons.Outlined.Home, label = "Mata Kuliah", onClick = { })
             Surface(color = ExamOrange, shape = MaterialTheme.shapes.small) {
                 ExamBottomNavItem(icon = Icons.Default.List, label = "Review", tint = Color.White, onClick = { })
             }
-            ExamBottomNavItem(icon = Icons.Default.Menu, label = "Navigasi", onClick = onNavClick)
+            ExamBottomNavItem(icon = Icons.Default.GridView, label = "Navigasi", onClick = onNavClick)
         }
     }
 }

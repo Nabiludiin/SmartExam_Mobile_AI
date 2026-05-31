@@ -52,16 +52,20 @@ fun AppNavigation(viewModel: ExamViewModel) {
             }
 
             val historyList by viewModel.historyList.collectAsState()
+            val examList by viewModel.examList.collectAsState()
+            val ujianSaatIni = examList.find { it.examId == eId }
+            val batasDariDosen = ujianSaatIni?.batasPercobaan ?: 1
 
             ViewExamScreen(
                 historyList = historyList,
+                maxAttempts = batasDariDosen,
                 onBackClick = { navController.popBackStack() },
                 onStartTestClick = {
                     navController.navigate("exam/$eId")
                 },
                 onReviewClick = {
                     val mId = 3
-                    navController.navigate("review/$mId")
+                    navController.navigate("review/$mId/$eId")
                 }
             )
         }
@@ -111,18 +115,24 @@ fun AppNavigation(viewModel: ExamViewModel) {
                 mahasiswaId = mId,
                 examId = eId,
                 onBackClick = { navController.popBackStack() },
-                onAttemptClick = { navController.navigate("review/$mId") }
+                onAttemptClick = { navController.navigate("review/$mId/$eId") }
             )
         }
 
         composable(
-            route = "review/{mahasiswaId}",
-            arguments = listOf(navArgument("mahasiswaId") { type = NavType.IntType })
+            route = "review/{mahasiswaId}/{examId}",
+            arguments = listOf(
+                navArgument("mahasiswaId") { type = NavType.IntType },
+                navArgument("examId") { type = NavType.IntType }
+            )
         ) { backStackEntry ->
             val mId = backStackEntry.arguments?.getInt("mahasiswaId") ?: 3
+            val eId = backStackEntry.arguments?.getInt("examId") ?: 0
+
             ReviewScreen(
                 viewModel = viewModel,
                 mahasiswaId = mId,
+                examId = eId,
                 onBackClick = { navController.popBackStack() }
             )
         }
