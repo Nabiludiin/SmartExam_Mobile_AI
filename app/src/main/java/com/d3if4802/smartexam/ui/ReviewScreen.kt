@@ -34,10 +34,21 @@ fun ReviewScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Pembahasan & Nilai", fontWeight = FontWeight.Bold, fontSize = 20.sp) },
+                title = {
+                    Text(
+                        text = "Pembahasan & Nilai",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 20.sp,
+                        color = Color.Black // Mengunci warna teks agar tetap tebal dan jelas
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Kembali",
+                            tint = Color(0xFF0064B0) // Menyamakan warna ikon panah dengan layar lain
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
@@ -93,8 +104,11 @@ fun ReviewScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text(text = "Skor AI:", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+
+                                val maxSkor = assessment.question?.skorMaksimal ?: 100
+
                                 Text(
-                                    text = "${assessment.skorAi ?: 0} / 50",
+                                    text = "${assessment.skorAi ?: 0} / $maxSkor",
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color(0xFF0064B0)

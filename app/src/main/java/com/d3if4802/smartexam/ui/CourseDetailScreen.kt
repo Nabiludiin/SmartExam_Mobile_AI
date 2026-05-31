@@ -17,7 +17,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -28,8 +28,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.d3if4802.smartexam.R
+import com.d3if4802.smartexam.data.Course
 import com.d3if4802.smartexam.data.CourseMaterial
 import com.d3if4802.smartexam.data.Exam
+import com.d3if4802.smartexam.data.RetrofitClient
 
 private object DetailColors {
     val BackgroundLight = Color(0xFFF8FAFC)
@@ -41,17 +43,31 @@ private object DetailColors {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CourseDetailScreen(
-    namaMatkul: String = "Mata Kuliah",
-    kategori: String = "Lainnya",
-    namaDosen: String = "Dosen Pengampu",
-    jumlahMahasiswa: Int = 0,
-    daftarUjian: List<Exam> = emptyList(),
-    daftarMateri: List<CourseMaterial> = emptyList(),
-
+    courseId: Int,
     onBackClick: () -> Unit,
     onMateriClick: (materiId: Int) -> Unit,
     onLatihanClick: (examId: Int) -> Unit
 ) {
+    // Variabel penampung data dari Database
+    var course by remember { mutableStateOf<Course?>(null) }
+    var daftarMateri by remember { mutableStateOf<List<CourseMaterial>>(emptyList()) }
+    var daftarUjian by remember { mutableStateOf<List<Exam>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+
+    // Proses Menarik Data dari API saat layar dibuka
+    LaunchedEffect(courseId) {
+        try {
+            val courses = RetrofitClient.apiService.getCourses()
+            course = courses.find { it.id == courseId }
+            daftarMateri = RetrofitClient.apiService.getMaterialsByCourse("eq.$courseId")
+            daftarUjian = RetrofitClient.apiService.getExamsByCourse("eq.$courseId")
+        } catch (e: Exception) {
+            e.printStackTrace()
+        } finally {
+            isLoading = false
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -91,112 +107,118 @@ fun CourseDetailScreen(
         },
         containerColor = DetailColors.BackgroundLight
     ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
-        ) {
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                shape = RoundedCornerShape(16.dp)
+        if (isLoading) {
+            Box(modifier = Modifier.fillMaxSize().padding(paddingValues), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = DetailColors.PrimaryBlue)
+            }
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp)
             ) {
-                Column(modifier = Modifier.padding(24.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.Top
-                    ) {
-                        Text(
-                            text = namaMatkul,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 24.sp,
-                            lineHeight = 30.sp,
-                            color = Color.Black,
-                            modifier = Modifier.weight(1f)
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Surface(
-                            color = DetailColors.BadgeBlue,
-                            shape = RoundedCornerShape(8.dp)
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Column(modifier = Modifier.padding(24.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.Top
                         ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                            Text(
+                                text = course?.namaMatkul ?: "Mata Kuliah",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 24.sp,
+                                lineHeight = 30.sp,
+                                color = Color.Black,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Surface(
+                                color = DetailColors.BadgeBlue,
+                                shape = RoundedCornerShape(8.dp)
                             ) {
-                                Icon(Icons.Default.Science, contentDescription = null, modifier = Modifier.size(14.dp), tint = DetailColors.BadgeTextBlue)
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(text = kategori, color = DetailColors.BadgeTextBlue, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Default.Science, contentDescription = null, modifier = Modifier.size(14.dp), tint = DetailColors.BadgeTextBlue)
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(text = course?.kategori ?: "Lainnya", color = DetailColors.BadgeTextBlue, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(24.dp))
+                        HorizontalDivider(color = Color(0xFFE2E8F0))
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Person, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(text = course?.users?.nama_lengkap ?: "Dosen Pengampu", fontSize = 13.sp, color = Color.DarkGray)
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.People, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(text = "${course?.jumlahMahasiswa ?: 0} Mahasiswa", fontSize = 13.sp, color = Color.DarkGray)
                             }
                         }
                     }
+                }
 
-                    Spacer(modifier = Modifier.height(24.dp))
-                    HorizontalDivider(color = Color(0xFFE2E8F0))
-                    Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(32.dp))
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Person, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(text = namaDosen, fontSize = 13.sp, color = Color.DarkGray)
-                        }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.People, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(text = "$jumlahMahasiswa Mahasiswa", fontSize = 13.sp, color = Color.DarkGray)
-                        }
+                Text(text = "Materi Pembelajaran", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.Black)
+                Spacer(modifier = Modifier.height(12.dp))
+
+                if (daftarMateri.isEmpty()) {
+                    Text(text = "Belum ada materi dari dosen.", color = Color.Gray, fontSize = 14.sp)
+                } else {
+                    daftarMateri.forEach { materi ->
+                        MenuItemCard(
+                            title = materi.judulMateri,
+                            description = "Format: ${materi.tipeMateri}",
+                            icon = Icons.AutoMirrored.Filled.MenuBook,
+                            onClick = { onMateriClick(materi.materiId) }
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
                     }
                 }
-            }
 
-            Spacer(modifier = Modifier.height(32.dp))
+                Spacer(modifier = Modifier.height(24.dp))
 
-            Text(text = "Materi Pembelajaran", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.Black)
-            Spacer(modifier = Modifier.height(12.dp))
+                Text(text = "Daftar Ujian & Latihan", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.Black)
+                Spacer(modifier = Modifier.height(12.dp))
 
-            if (daftarMateri.isEmpty()) {
-                Text(text = "Belum ada materi dari dosen.", color = Color.Gray, fontSize = 14.sp)
-            } else {
-                daftarMateri.forEach { materi ->
-                    MenuItemCard(
-                        title = materi.judulMateri,
-                        description = "Format: ${materi.tipeMateri}",
-                        icon = Icons.AutoMirrored.Filled.MenuBook,
-                        onClick = { onMateriClick(materi.materiId) }
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
+                if (daftarUjian.isEmpty()) {
+                    Text(text = "Belum ada ujian yang dibuat.", color = Color.Gray, fontSize = 14.sp)
+                } else {
+                    daftarUjian.forEach { ujian ->
+                        MenuItemCard(
+                            title = ujian.judulUjian,
+                            description = "Tipe: ${ujian.tipeUjian}",
+                            icon = Icons.AutoMirrored.Filled.Assignment,
+                            onClick = { onLatihanClick(ujian.examId) }
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
                 }
+
+                Spacer(modifier = Modifier.height(32.dp))
             }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Text(text = "Daftar Ujian & Latihan", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.Black)
-            Spacer(modifier = Modifier.height(12.dp))
-
-            if (daftarUjian.isEmpty()) {
-                Text(text = "Belum ada ujian yang dibuat.", color = Color.Gray, fontSize = 14.sp)
-            } else {
-                daftarUjian.forEach { ujian ->
-                    MenuItemCard(
-                        title = ujian.judulUjian,
-                        description = "Tipe: ${ujian.tipeUjian}",
-                        icon = Icons.AutoMirrored.Filled.Assignment,
-                        onClick = { onLatihanClick(ujian.examId) }
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                }
-            }
-
-            Spacer(modifier = Modifier.height(32.dp))
         }
     }
 }

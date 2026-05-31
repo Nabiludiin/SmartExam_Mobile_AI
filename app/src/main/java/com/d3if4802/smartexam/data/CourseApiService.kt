@@ -1,8 +1,8 @@
 package com.d3if4802.smartexam.data
 
 import com.google.gson.annotations.SerializedName
-import retrofit2.Retrofit
 import retrofit2.Response
+import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.Body
 import retrofit2.http.GET
@@ -40,7 +40,8 @@ data class Exam(
     @SerializedName("exam_id") val examId: Int,
     @SerializedName("course_id") val courseId: Int,
     @SerializedName("judul_ujian") val judulUjian: String,
-    @SerializedName("tipe_ujian") val tipeUjian: String
+    @SerializedName("tipe_ujian") val tipeUjian: String,
+    @SerializedName("durasi_menit") val durasiMenit: Int? = null
 )
 
 data class Question(
@@ -48,7 +49,8 @@ data class Question(
     @SerializedName("exam_id") val examId: Int,
     @SerializedName("teks_soal") val text: String,
     @SerializedName("kunci_jawaban") val kunciJawaban: String?,
-    @SerializedName("rubrik_penilaian") val rubrikPenilaian: String?
+    @SerializedName("rubrik_penilaian") val rubrikPenilaian: String?,
+    @SerializedName("skor_maksimal") val skorMaksimal: Int? = 100
 )
 
 data class DataEnrollment(
@@ -99,6 +101,12 @@ data class UpdateScoreRequest(
     @SerializedName("status_verifikasi") val statusVerifikasi: String
 )
 
+data class UpdateAttemptRequest(
+    @SerializedName("score_absolute") val scoreAbsolute: Int,
+    @SerializedName("score_percentage") val scorePercentage: Double,
+    @SerializedName("status") val status: String
+)
+
 interface ApiService {
     @GET("course?select=*,users(nama_lengkap),enrollments(mahasiswa_id)")
     suspend fun getCourses(): List<Course>
@@ -108,6 +116,9 @@ interface ApiService {
 
     @GET("exams")
     suspend fun getExamsByCourse(@Query("course_id", encoded = true) courseId: String): List<Exam>
+
+    @GET("exams")
+    suspend fun getExamById(@Query("exam_id", encoded = true) examId: String): List<Exam>
 
     @GET("questions")
     suspend fun getQuestions(@Query("exam_id", encoded = true) examId: String): List<Question>
@@ -133,6 +144,14 @@ interface ApiService {
 
     @POST("exam_attempts")
     suspend fun createExamAttempt(@Body attemptData: CreateAttemptRequest)
+
+    @PATCH("exam_attempts")
+    suspend fun updateExamAttempt(
+        @Query("mahasiswa_id") mId: String,
+        @Query("exam_id") examId: String,
+        @Query("attempt_number") attemptNum: String,
+        @Body payload: UpdateAttemptRequest
+    ): Response<Unit>
 
     @GET("ai_assessments?select=*,questions(*)")
     suspend fun getAssessmentResults(

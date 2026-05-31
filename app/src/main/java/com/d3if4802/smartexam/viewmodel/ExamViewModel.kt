@@ -13,6 +13,7 @@ import com.d3if4802.smartexam.data.ExamAttempt
 import com.d3if4802.smartexam.data.Question
 import com.d3if4802.smartexam.data.RetrofitClient
 import com.d3if4802.smartexam.data.SubmitAnswerRequest
+import com.d3if4802.smartexam.data.UpdateAttemptRequest
 import com.d3if4802.smartexam.data.UpdateScoreRequest
 import com.d3if4802.smartexam.db.AnswerDao
 import com.d3if4802.smartexam.db.AnswerEntity
@@ -55,6 +56,9 @@ class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
 
     private val _assessmentResults = MutableStateFlow<List<AssessmentResult>>(emptyList())
     val assessmentResults: StateFlow<List<AssessmentResult>> = _assessmentResults.asStateFlow()
+
+    private val _isLoading = MutableStateFlow(false)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
     var activeExamId: Int = 0
     private var timerJob: Job? = null
@@ -102,15 +106,25 @@ class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
         }
     }
 
-    fun fetchQuestionsFromServer(examFilter: String) {
+    fun fetchQuestionsFromServer(examId: Int) {
         viewModelScope.launch {
             try {
-                val response = RetrofitClient.apiService.getQuestions(examFilter)
+                answerDao.deleteAllAnswers()
+                _jawabanState.value = ""
+                _currentQuestionIndex.value = 0
+                isSubmitting = false
+                _isLoading.value = false
+                timerJob?.cancel()
+
+                val examResponse = RetrofitClient.apiService.getExamById("eq.$examId")
+                val durasiDosen = examResponse.firstOrNull()?.durasiMenit
+
+                val response = RetrofitClient.apiService.getQuestions("eq.$examId")
                 _questions.value = response
 
                 if (response.isNotEmpty()) {
                     loadJawaban(0)
-                    startTimer()
+                    startTimer(durasiDosen)
                 }
             } catch (e: Exception) {
                 Log.e("CEK_API", "Error: $e")
@@ -130,11 +144,17 @@ class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
         }
     }
 
-    fun startTimer() {
+    fun startTimer(durasiMenit: Int?) {
         timerJob?.cancel()
         _isTimeUp.value = false
+
+        if (durasiMenit == null || durasiMenit <= 0) {
+            _timeLeftString.value = "Tanpa Waktu"
+            return
+        }
+
         timerJob = viewModelScope.launch {
-            var timeInSeconds = 45 * 60
+            var timeInSeconds = durasiMenit * 60
             while (timeInSeconds > 0) {
                 delay(1000L)
                 timeInSeconds--
@@ -146,6 +166,12 @@ class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
         }
     }
 
+    fun resetExamState() {
+        _currentQuestionIndex.value = 0
+        _jawabanState.value = ""
+        _isTimeUp.value = false
+    }
+
     fun resetExam() {
         viewModelScope.launch {
             answerDao.deleteAllAnswers()
@@ -154,6 +180,7 @@ class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
             _questions.value = emptyList()
             timerJob?.cancel()
             isSubmitting = false
+            _isLoading.value = false
         }
     }
 
@@ -213,6 +240,7 @@ class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
     fun kirimSemuaJawabanKeServer(mahasiswaId: Int) {
         if (isSubmitting) return
         isSubmitting = true
+        _isLoading.value = true
 
         viewModelScope.launch {
             try {
@@ -229,13 +257,15 @@ class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
                     RetrofitClient.apiService.submitAllAnswers(payload, "resolution=merge-duplicates")
                 }
 
+                val totalMaxScore = _questions.value.sumOf { it.skorMaksimal ?: 100 }
                 val percobaanKe = _historyList.value.size + 1
+
                 val historyPayload = CreateAttemptRequest(
                     examId = activeExamId,
                     mahasiswaId = mahasiswaId,
                     attemptNumber = percobaanKe,
                     scoreAbsolute = 0,
-                    scoreMax = 50,
+                    scoreMax = totalMaxScore,
                     scorePercentage = 0.0,
                     ipAddress = "192.168.0.55",
                     status = "Belum Ditinjau"
@@ -243,22 +273,24 @@ class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
 
                 RetrofitClient.apiService.createExamAttempt(historyPayload)
 
-                nilaiSemuaJawabanDenganAI(mahasiswaId)
+                nilaiSemuaJawabanDenganAI(mahasiswaId, percobaanKe, totalMaxScore)
 
             } catch (e: Exception) {
                 Log.e("CEK_API", "Error: ${e.message}")
+                isSubmitting = false
+                _isLoading.value = false
             }
         }
     }
 
-    private fun nilaiSemuaJawabanDenganAI(mahasiswaId: Int) {
+    private fun nilaiSemuaJawabanDenganAI(mahasiswaId: Int, percobaanKe: Int, totalMaxScore: Int) {
         viewModelScope.launch {
             try {
                 val apiKey = BuildConfig.GEMINI_API_KEY
-                Log.d("CEK_AI", "1. Status API Key: ${if(apiKey.isNotBlank()) "AMAN" else "KOSONG"}")
-
                 if (apiKey.isBlank()) {
                     Log.e("CEK_AI", "API Key KOSONG")
+                    isSubmitting = false
+                    _isLoading.value = false
                     return@launch
                 }
 
@@ -269,13 +301,12 @@ class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
 
                 val localAnswers = _allAnswers.value
                 val daftarSoal = _questions.value
-
-                Log.d("CEK_AI", "2. Memulai AI")
+                var totalSkorDiperoleh = 0
 
                 for (jawaban in localAnswers) {
                     val soalTerkait = daftarSoal.find { it.id == jawaban.questionId }
                     if (soalTerkait != null) {
-                        Log.d("CEK_AI", "3. Proses Soal ID: ${soalTerkait.id}")
+                        val maxSkor = soalTerkait.skorMaksimal ?: 100
 
                         val prompt = """
                             Anda adalah sistem penilai ujian otomatis yang kaku. 
@@ -283,21 +314,20 @@ class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
                             
                             [SOAL]: ${soalTerkait.text}
                             [KUNCI JAWABAN]: ${soalTerkait.kunciJawaban ?: "Nilai berdasarkan keakuratan dan logika."}
-                            [RUBRIK PENILAIAN]: ${soalTerkait.rubrikPenilaian ?: "Skor maksimal adalah 50."}
+                            [RUBRIK PENILAIAN]: ${soalTerkait.rubrikPenilaian ?: "Skor maksimal adalah $maxSkor."}
                             [JAWABAN MAHASISWA]: ${jawaban.answerText}
                             
                             ATURAN WAJIB (JIKA DILANGGAR SISTEM AKAN ERROR):
-                            1. DILARANG KERAS menggunakan simbol bintang (**), *bold*, atau markdown apapun.
+                            1. DILARANG KERAS menggunakan simbol bintang (*), *bold, atau markdown apapun.
                             2. DILARANG menambahkan kalimat sapaan, penjelasan tambahan, atau teks penutup.
                             3. HANYA keluarkan 2 baris teks persis seperti format di bawah ini.
                             
-                            SKOR: [Isi dengan 1 angka bulat antara 0 sampai 50]
+                            SKOR: [Isi dengan 1 angka bulat antara 0 sampai $maxSkor]
                             FEEDBACK: [Isi dengan 1-2 kalimat objektif alasan penilaian]
                         """.trimIndent()
 
                         val response = generativeModel.generateContent(prompt)
                         val aiResult = response.text?.replace("*", "")?.trim() ?: ""
-                        Log.d("CEK_AI", "4. Balasan Asli AI:\n$aiResult")
 
                         var skorAi = 0
                         var feedbackAi = "Gagal memproses feedback"
@@ -311,17 +341,43 @@ class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
                         if (matchSkor != null && matchFeedback != null) {
                             skorAi = matchSkor.groupValues[1].toIntOrNull() ?: 0
                             feedbackAi = matchFeedback.groupValues[1].trim()
-                            Log.d("CEK_AI", "5. Sukses Parsing! Skor AI: $skorAi")
+                            totalSkorDiperoleh += skorAi
                         } else {
-                            Log.e("CEK_AI", "5. Gagal Parsing! AI tidak mengikuti format.")
                             feedbackAi = "Catatan Sistem: Format balasan AI salah -> $aiResult"
                         }
 
                         updateSkorKeServer(mahasiswaId, soalTerkait.id, skorAi, feedbackAi, "Dinilai AI")
                     }
                 }
+
+                val persentase = if (totalMaxScore > 0) (totalSkorDiperoleh.toDouble() / totalMaxScore.toDouble()) * 100.0 else 0.0
+
+                val statusUjian = if (persentase >= 70.0) {
+                    "Selesai"
+                } else {
+                    "Belum Ditinjau"
+                }
+
+                val updatePayload = UpdateAttemptRequest(
+                    scoreAbsolute = totalSkorDiperoleh,
+                    scorePercentage = persentase,
+                    status = statusUjian
+                )
+
+                RetrofitClient.apiService.updateExamAttempt(
+                    mId = "eq.$mahasiswaId",
+                    examId = "eq.$activeExamId",
+                    attemptNum = "eq.$percobaanKe",
+                    payload = updatePayload
+                )
+
+                isSubmitting = false
+                _isLoading.value = false
+
             } catch (e: Exception) {
                 Log.e("CEK_AI", "ERROR FATAL: ${e.message}")
+                isSubmitting = false
+                _isLoading.value = false
             }
         }
     }
@@ -335,13 +391,11 @@ class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
                     statusVerifikasi = status
                 )
 
-                Log.d("CEK_AI", "6. Kirim ke Server")
                 RetrofitClient.apiService.updateAssessmentScore(
                     mId = "eq.$mahasiswaId",
                     qId = "eq.$questionId",
                     payload = payload
                 )
-                Log.d("CEK_AI", "7. Sukses Update DB")
             } catch (e: Exception) {
                 Log.e("CEK_AI", "7. Gagal Update DB: ${e.message}")
             }

@@ -1,5 +1,6 @@
 package com.d3if4802.smartexam.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -44,30 +45,50 @@ val ExamAnsweredGreen = Color(0xFF10B981)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExamScreen(
+    examId: Int,
     viewModel: ExamViewModel = viewModel(),
-    onFinishExam: () -> Unit = {}
+    onFinishExam: () -> Unit = {},
+    onCancelExam: () -> Unit = {}
 ) {
     val scope = rememberCoroutineScope()
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val sheetState = rememberModalBottomSheetState()
     var showBottomSheet by remember { mutableStateOf(false) }
+    var showExitDialog by remember { mutableStateOf(false) }
 
-    // Ambil data asinkron dari server
     val questions = viewModel.questions.collectAsState().value
     val answerText by viewModel.jawabanState.collectAsState()
     val timeLeft by viewModel.timeLeftString.collectAsState()
     val currentQuestionIndex by viewModel.currentQuestionIndex.collectAsState()
     val isTimeUp by viewModel.isTimeUp.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
     val totalQuestions = questions.size
 
+    LaunchedEffect(examId) {
+        viewModel.resetExamState()
+        viewModel.activeExamId = examId
+        viewModel.fetchQuestionsFromServer(examId)
+    }
+
+    var hasSubmitted by remember { mutableStateOf(false) }
     val answeredStatus = remember { mutableStateMapOf<Int, Boolean>() }
 
-    // FUNGSI AUTO-SUBMIT JIKA WAKTU HABIS
+    BackHandler {
+        if (!isLoading && !hasSubmitted) {
+            showExitDialog = true
+        }
+    }
+
+    LaunchedEffect(isLoading) {
+        if (hasSubmitted && !isLoading) {
+            onFinishExam()
+        }
+    }
+
     LaunchedEffect(isTimeUp) {
         if (isTimeUp && questions.isNotEmpty()) {
-            // Karena ini purwarupa, kita pakai mahasiswaId statis = 3 (Budi Santoso dari database)
+            hasSubmitted = true
             viewModel.kirimSemuaJawabanKeServer(mahasiswaId = 3)
-            onFinishExam()
         }
     }
 
@@ -98,7 +119,6 @@ fun ExamScreen(
             },
             containerColor = ExamBackground
         ) { paddingValues ->
-
             if (questions.isEmpty()) {
                 Box(
                     modifier = Modifier.fillMaxSize().padding(paddingValues),
@@ -116,7 +136,7 @@ fun ExamScreen(
                         )
                         Spacer(modifier = Modifier.height(24.dp))
                         Button(
-                            onClick = { onFinishExam() },
+                            onClick = { onCancelExam() },
                             colors = ButtonDefaults.buttonColors(containerColor = ExamOrange)
                         ) {
                             Text("Kembali", color = Color.White)
@@ -133,11 +153,9 @@ fun ExamScreen(
                 ) {
                     ExamProgressHeader(currentIdx = currentQuestionIndex, total = totalQuestions)
                     Spacer(modifier = Modifier.height(24.dp))
-
                     val currentQuestion = questions[currentQuestionIndex]
-
                     ExamQuestionContent(
-                        category = "Ujian Esai", // Category dihapus dari DB, kita static dulu
+                        category = "Ujian Esai",
                         questionNumber = "Q${currentQuestionIndex + 1}",
                         questionText = currentQuestion.text,
                         answerText = answerText,
@@ -150,9 +168,8 @@ fun ExamScreen(
                         onPrevious = { viewModel.soalSebelumnya() },
                         onNext = { viewModel.soalSelanjutnya() },
                         onFinish = {
-                            // Fungsi saat klik tombol Akhiri Tes
+                            hasSubmitted = true
                             viewModel.kirimSemuaJawabanKeServer(mahasiswaId = 3)
-                            onFinishExam()
                         }
                     )
                 }
@@ -178,18 +195,15 @@ fun ExamScreen(
                     itemsIndexed(Array(totalQuestions) { it }) { index, _ ->
                         val isCurrent = index == currentQuestionIndex
                         val isAnswered = answeredStatus[index] == true
-
                         val backgroundColor = when {
                             isCurrent -> ExamDeepBlue
                             isAnswered -> ExamAnsweredGreen
                             else -> ExamCardBorder
                         }
-
                         val textColor = when {
                             isCurrent || isAnswered -> Color.White
                             else -> ExamDrawerTextBlue
                         }
-
                         Box(
                             modifier = Modifier
                                 .aspectRatio(1f)
@@ -211,14 +225,69 @@ fun ExamScreen(
             }
         }
     }
+
+    if (showExitDialog) {
+        AlertDialog(
+            onDismissRequest = { showExitDialog = false },
+            title = {
+                Text(text = "Batalkan Ujian?", fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Text(text = "Waktu ujian masih berjalan. Jika kamu keluar sekarang, jawabanmu tidak akan disimpan dan AI tidak akan menilai ujianmu.")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showExitDialog = false
+                        onCancelExam()
+                    }
+                ) {
+                    Text("Ya, Keluar", color = Color(0xFFDC2626), fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                Button(
+                    onClick = { showExitDialog = false },
+                    colors = ButtonDefaults.buttonColors(containerColor = ExamDeepBlue)
+                ) {
+                    Text("Lanjutkan Ujian", color = Color.White)
+                }
+            },
+            containerColor = Color.White
+        )
+    }
+
+    if (isLoading) {
+        AlertDialog(
+            onDismissRequest = { },
+            confirmButton = {},
+            title = {
+                Text(text = "Mengoreksi Ujian", fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    CircularProgressIndicator(color = Color(0xFF0064B0))
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(text = "AI sedang menilai jawabanmu...")
+                }
+            },
+            containerColor = Color.White
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExamTopAppBar(timerText: String, onMenuClick: () -> Unit) {
-    val isWarning = timerText.startsWith("00:")
-    val timerColor = if (isWarning) Color(0xFFDC2626) else ExamOrange
-
+    val isWarning = timerText.startsWith("00:") && timerText != "Tanpa Waktu"
+    val timerColor = when {
+        timerText == "Tanpa Waktu" -> Color(0xFF64748B)
+        isWarning -> Color(0xFFDC2626)
+        else -> ExamOrange
+    }
     TopAppBar(
         navigationIcon = {
             IconButton(onClick = onMenuClick) {
@@ -284,7 +353,6 @@ fun ExamQuestionContent(
             OutlinedTextField(
                 value = answerText, onValueChange = onAnswerChange,
                 modifier = Modifier.fillMaxWidth().heightIn(min = 200.dp),
-                placeholder = { Text("Ketik argumen dan jawaban esai Anda di sini...", color = Color.Gray) },
                 textStyle = LocalTextStyle.current.copy(fontSize = 16.sp, color = Color.Black),
                 colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = ExamDeepBlue, unfocusedBorderColor = ExamTextGray)
             )

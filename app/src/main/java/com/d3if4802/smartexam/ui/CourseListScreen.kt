@@ -134,7 +134,6 @@ fun CourseListScreen(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Header (Breadcrumbs, Search, Filter)
                 item(span = { GridItemSpan(2) }) {
                     Column {
                         Spacer(modifier = Modifier.height(12.dp))
@@ -144,7 +143,6 @@ fun CourseListScreen(
                         Text(stringResource(R.string.subtitle_course_list), fontSize = 13.sp, color = Color.Gray)
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        // Search Bar
                         Text("Nama Mata Kuliah", fontSize = 12.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.height(4.dp))
                         OutlinedTextField(
@@ -154,7 +152,13 @@ fun CourseListScreen(
                             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color.Gray) },
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(8.dp),
-                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = ColorPrimaryBlue, unfocusedBorderColor = ColorCardBorder)
+                            textStyle = LocalTextStyle.current.copy(color = Color.Black),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = ColorPrimaryBlue,
+                                unfocusedBorderColor = ColorCardBorder,
+                                focusedTextColor = Color.Black,
+                                unfocusedTextColor = Color.Black
+                            )
                         )
                         Spacer(modifier = Modifier.height(12.dp))
 
@@ -173,7 +177,13 @@ fun CourseListScreen(
                                     .fillMaxWidth()
                                     .menuAnchor(),
                                 shape = RoundedCornerShape(8.dp),
-                                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = ColorPrimaryBlue, unfocusedBorderColor = ColorCardBorder)
+                                textStyle = LocalTextStyle.current.copy(color = Color.Black),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = ColorPrimaryBlue,
+                                    unfocusedBorderColor = ColorCardBorder,
+                                    focusedTextColor = Color.Black,
+                                    unfocusedTextColor = Color.Black
+                                )
                             )
                             ExposedDropdownMenu(
                                 expanded = expanded,
@@ -182,7 +192,7 @@ fun CourseListScreen(
                             ) {
                                 categories.forEach { item ->
                                     DropdownMenuItem(
-                                        text = { Text(text = item) },
+                                        text = { Text(text = item, color = Color.Black) },
                                         onClick = {
                                             selectedCategory = item
                                             expanded = false
@@ -193,7 +203,6 @@ fun CourseListScreen(
                         }
                         Spacer(modifier = Modifier.height(20.dp))
 
-                        // View Toggle (List/Grid)
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -228,7 +237,6 @@ fun CourseListScreen(
                         }
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        // Active Filter Chips
                         if (selectedCategory != "Semua") {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text("Difilter berdasarkan : ", fontSize = 12.sp, color = Color.Gray)
@@ -250,7 +258,6 @@ fun CourseListScreen(
                     }
                 }
 
-                // API ASYNC STATE CONTROLLER
                 if (isLoading) {
                     item(span = { GridItemSpan(2) }) {
                         Box(modifier = Modifier
@@ -321,7 +328,7 @@ fun ListCourseItem(course: Course, onClick: () -> Unit) {
                 Button(onClick = onClick, modifier = Modifier
                     .fillMaxWidth()
                     .height(36.dp), colors = ButtonDefaults.buttonColors(containerColor = ColorPrimaryBlue)) {
-                    Text(stringResource(R.string.btn_enter_class), fontSize = 12.sp)
+                    Text(stringResource(R.string.btn_enter_class), fontSize = 12.sp, color = Color.White)
                 }
             }
         }
@@ -354,7 +361,7 @@ fun GridCourseItem(course: Course, onClick: () -> Unit) {
                 Button(onClick = onClick, modifier = Modifier
                     .fillMaxWidth()
                     .height(30.dp), contentPadding = PaddingValues(0.dp), colors = ButtonDefaults.buttonColors(containerColor = ColorPrimaryBlue)) {
-                    Text(stringResource(R.string.btn_enter), fontSize = 10.sp)
+                    Text(stringResource(R.string.btn_enter), fontSize = 10.sp, color = Color.White)
                 }
             }
         }
@@ -379,7 +386,7 @@ fun BottomNavigationBar(onMenuClick: () -> Unit) {
         )
         NavigationBarItem(
             selected = true,
-            onClick = { /* TODO: Navigasi Home */ },
+            onClick = { },
             icon = { Icon(Icons.Filled.Home, contentDescription = "Beranda") },
             label = { Text("Beranda", fontSize = 10.sp, fontWeight = FontWeight.Bold) },
             colors = NavigationBarItemDefaults.colors(
@@ -390,7 +397,7 @@ fun BottomNavigationBar(onMenuClick: () -> Unit) {
         )
         NavigationBarItem(
             selected = false,
-            onClick = { /* TODO: Navigasi Profil */ },
+            onClick = { },
             icon = { Icon(Icons.Outlined.Person, contentDescription = "Profil") },
             label = { Text("Profil", fontSize = 10.sp, fontWeight = FontWeight.SemiBold) },
             colors = NavigationBarItemDefaults.colors(

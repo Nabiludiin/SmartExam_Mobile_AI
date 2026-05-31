@@ -1,21 +1,28 @@
 package com.d3if4802.smartexam.ui
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.d3if4802.smartexam.R
 import com.d3if4802.smartexam.data.ExamAttempt
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -29,10 +36,35 @@ fun ViewExamScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { },
+                title = {
+                    Image(
+                        painter = painterResource(id = R.drawable.logo_smartexam),
+                        contentDescription = "Logo Smart Exam",
+                        modifier = Modifier
+                            .height(32.dp)
+                            .padding(start = 4.dp),
+                        contentScale = ContentScale.Fit
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Kembali")
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Kembali",
+                            tint = Color(0xFF0064B0)
+                        )
+                    }
+                },
+                actions = {
+                    Box(
+                        modifier = Modifier
+                            .padding(end = 16.dp)
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Color.LightGray),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.Person, contentDescription = "Profile", tint = Color.White)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
@@ -40,7 +72,9 @@ fun ViewExamScreen(
         },
         bottomBar = {
             Surface(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding(),
                 shadowElevation = 8.dp,
                 color = Color.White
             ) {
@@ -145,7 +179,7 @@ fun ViewExamScreen(
                                     modifier = Modifier.size(36.dp)
                                 ) {
                                     Icon(
-                                        painter = painterResource(android.R.drawable.ic_menu_view),
+                                        imageVector = Icons.Outlined.Visibility,
                                         contentDescription = "Lihat Review",
                                         tint = Color.Gray
                                     )

@@ -1,85 +1,40 @@
-package com.d3if4802.smartexam
+package com.d3if4802.smartexam.ui
 
-import android.util.Log
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.platform.LocalContext
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.d3if4802.smartexam.db.AppDatabase
-import com.d3if4802.smartexam.ui.CourseDetailScreen
-import com.d3if4802.smartexam.ui.CourseListScreen
-import com.d3if4802.smartexam.ui.ExamScreen
-import com.d3if4802.smartexam.ui.ResultScreen
-import com.d3if4802.smartexam.ui.ReviewScreen
-import com.d3if4802.smartexam.ui.ViewExamScreen
 import com.d3if4802.smartexam.viewmodel.ExamViewModel
-import com.d3if4802.smartexam.viewmodel.ExamViewModelFactory
-
-const val LOGGED_IN_MAHASISWA_ID = 3
 
 @Composable
-fun AppNavigation() {
+fun AppNavigation(viewModel: ExamViewModel) {
     val navController = rememberNavController()
-    val context = LocalContext.current
-
-    val database = AppDatabase.getDatabase(context)
-    val factory = ExamViewModelFactory(database.answerDao())
-    val sharedViewModel: ExamViewModel = viewModel(factory = factory)
 
     NavHost(navController = navController, startDestination = "course_list") {
 
         composable("course_list") {
             CourseListScreen(
                 onNavigateToDetail = { course ->
-                    val dosen = course.users?.nama_lengkap ?: "Dosen Belum Diatur"
-                    val kat = course.kategori ?: "Lainnya"
-                    navController.navigate("course_detail/${course.id}/${course.namaMatkul}/$kat/$dosen/${course.jumlahMahasiswa}")
+                    navController.navigate("course_detail/${course.id}")
                 }
             )
         }
 
         composable(
-            route = "course_detail/{courseId}/{namaMatkul}/{kategori}/{namaDosen}/{jumlahMahasiswa}",
-            arguments = listOf(
-                navArgument("courseId") { type = NavType.IntType },
-                navArgument("namaMatkul") { type = NavType.StringType },
-                navArgument("kategori") { type = NavType.StringType },
-                navArgument("namaDosen") { type = NavType.StringType },
-                navArgument("jumlahMahasiswa") { type = NavType.IntType }
-            )
+            route = "course_detail/{courseId}",
+            arguments = listOf(navArgument("courseId") { type = NavType.IntType })
         ) { backStackEntry ->
-            val courseId = backStackEntry.arguments?.getInt("courseId") ?: 0
-            val namaMatkul = backStackEntry.arguments?.getString("namaMatkul") ?: ""
-            val kategori = backStackEntry.arguments?.getString("kategori") ?: ""
-            val namaDosen = backStackEntry.arguments?.getString("namaDosen") ?: ""
-            val jumlahMahasiswa = backStackEntry.arguments?.getInt("jumlahMahasiswa") ?: 0
-
-            val daftarUjianAsli by sharedViewModel.examList.collectAsState()
-            val daftarMateriAsli by sharedViewModel.materialList.collectAsState()
-
-            LaunchedEffect(courseId) {
-                sharedViewModel.fetchExamsByCourse(courseId)
-                sharedViewModel.fetchMaterialsByCourse(courseId)
-            }
+            val cId = backStackEntry.arguments?.getInt("courseId") ?: 0
 
             CourseDetailScreen(
-                namaMatkul = namaMatkul,
-                kategori = kategori,
-                namaDosen = namaDosen,
-                jumlahMahasiswa = jumlahMahasiswa,
-                daftarUjian = daftarUjianAsli,
-                daftarMateri = daftarMateriAsli,
+                courseId = cId,
                 onBackClick = { navController.popBackStack() },
-                onMateriClick = { materiId ->
-                    Log.d("CEK_API", "Klik materi ID: $materiId")
-                },
+                onMateriClick = { materiId -> },
                 onLatihanClick = { examId ->
                     navController.navigate("view_exam/$examId")
                 }
@@ -90,59 +45,73 @@ fun AppNavigation() {
             route = "view_exam/{examId}",
             arguments = listOf(navArgument("examId") { type = NavType.IntType })
         ) { backStackEntry ->
-            val examId = backStackEntry.arguments?.getInt("examId") ?: 0
-            val historyData by sharedViewModel.historyList.collectAsState()
+            val eId = backStackEntry.arguments?.getInt("examId") ?: 0
 
-            LaunchedEffect(examId) {
-                sharedViewModel.activeExamId = examId
-                sharedViewModel.fetchExamHistory(
-                    mahasiswaId = LOGGED_IN_MAHASISWA_ID,
-                    examId = examId
-                )
+            LaunchedEffect(eId) {
+                viewModel.fetchExamHistory(mahasiswaId = 3, examId = eId)
             }
 
+            val historyList by viewModel.historyList.collectAsState()
+
             ViewExamScreen(
-                historyList = historyData,
+                historyList = historyList,
                 onBackClick = { navController.popBackStack() },
                 onStartTestClick = {
-                    sharedViewModel.resetExam()
-                    val filter = "eq.$examId"
-                    sharedViewModel.fetchQuestionsFromServer(filter)
-                    navController.navigate("exam")
+                    navController.navigate("exam/$eId")
                 },
                 onReviewClick = {
-                    navController.navigate("review/$LOGGED_IN_MAHASISWA_ID")
+                    val mId = 3
+                    navController.navigate("review/$mId")
                 }
             )
         }
 
-        composable("exam") {
+        composable(
+            route = "exam/{examId}",
+            arguments = listOf(navArgument("examId") { type = NavType.IntType })
+        ) { backStackEntry ->
+            val eId = backStackEntry.arguments?.getInt("examId") ?: 0
+
             ExamScreen(
-                viewModel = sharedViewModel,
+                examId = eId,
+                viewModel = viewModel,
                 onFinishExam = {
-                    sharedViewModel.kirimSemuaJawabanKeServer(LOGGED_IN_MAHASISWA_ID)
                     navController.navigate("result") {
-                        popUpTo("exam") { inclusive = true }
+                        popUpTo("course_list") { inclusive = false }
                     }
+                },
+                onCancelExam = {
+                    navController.popBackStack()
                 }
             )
         }
 
         composable("result") {
             ResultScreen(
-                viewModel = sharedViewModel,
-                onRetry = {
-                    sharedViewModel.resetExam()
-                    sharedViewModel.fetchQuestionsFromServer("eq.${sharedViewModel.activeExamId}")
-                    navController.navigate("exam") {
-                        popUpTo("result") { inclusive = true }
-                    }
-                },
+                viewModel = viewModel,
+                onRetry = { navController.popBackStack() },
                 onHome = {
-                    navController.navigate("course_list") {
-                        popUpTo("course_list") { inclusive = true }
-                    }
+                    navController.navigate("course_list") { popUpTo(0) }
                 }
+            )
+        }
+
+        composable(
+            route = "history/{mahasiswaId}/{examId}",
+            arguments = listOf(
+                navArgument("mahasiswaId") { type = NavType.IntType },
+                navArgument("examId") { type = NavType.IntType }
+            )
+        ) { backStackEntry ->
+            val mId = backStackEntry.arguments?.getInt("mahasiswaId") ?: 3
+            val eId = backStackEntry.arguments?.getInt("examId") ?: 0
+
+            HistoryScreen(
+                viewModel = viewModel,
+                mahasiswaId = mId,
+                examId = eId,
+                onBackClick = { navController.popBackStack() },
+                onAttemptClick = { navController.navigate("review/$mId") }
             )
         }
 
@@ -150,9 +119,9 @@ fun AppNavigation() {
             route = "review/{mahasiswaId}",
             arguments = listOf(navArgument("mahasiswaId") { type = NavType.IntType })
         ) { backStackEntry ->
-            val mId = backStackEntry.arguments?.getInt("mahasiswaId") ?: LOGGED_IN_MAHASISWA_ID
+            val mId = backStackEntry.arguments?.getInt("mahasiswaId") ?: 3
             ReviewScreen(
-                viewModel = sharedViewModel,
+                viewModel = viewModel,
                 mahasiswaId = mId,
                 onBackClick = { navController.popBackStack() }
             )
