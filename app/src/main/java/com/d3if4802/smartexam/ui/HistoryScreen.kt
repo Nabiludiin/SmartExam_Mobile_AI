@@ -31,7 +31,6 @@ fun HistoryScreen(
 ) {
     val historyList by viewModel.historyList.collectAsState()
 
-    // Ambil data riwayat ujian saat layar ini dibuka
     LaunchedEffect(mahasiswaId, examId) {
         viewModel.fetchExamHistory(mahasiswaId, examId)
     }
@@ -48,7 +47,7 @@ fun HistoryScreen(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
             )
         },
-        containerColor = Color(0xFFF8FAFC) // Warna background abu-abu sangat muda
+        containerColor = Color(0xFFF8FAFC)
     ) { paddingValues ->
 
         if (historyList.isEmpty()) {
