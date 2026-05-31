@@ -64,9 +64,16 @@ fun CourseListScreen(
     val categories = listOf("Semua", "Pemrograman", "Jaringan", "Desain UI/UX", "Lainnya")
     var selectedCategory by remember { mutableStateOf(categories[0]) }
 
+    var currentPage by remember { mutableStateOf(1) }
+    val itemsPerPage = 10
+
     val allCourses by viewModel.courseList.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
+
+    LaunchedEffect(searchQuery, selectedCategory) {
+        currentPage = 1
+    }
 
     val filteredCourses = allCourses.filter { course ->
         val matchesSearch = course.namaMatkul.contains(searchQuery, ignoreCase = true)
@@ -80,6 +87,11 @@ fun CourseListScreen(
 
         matchesSearch && matchesCategory
     }
+
+    val totalPages = if (filteredCourses.isEmpty()) 1 else (filteredCourses.size + itemsPerPage - 1) / itemsPerPage
+    val startIndex = (currentPage - 1) * itemsPerPage
+    val endIndex = minOf(startIndex + itemsPerPage, filteredCourses.size)
+    val paginatedCourses = if (filteredCourses.isNotEmpty()) filteredCourses.subList(startIndex, endIndex) else emptyList()
 
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -208,7 +220,7 @@ fun CourseListScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("Menampilkan ${filteredCourses.size} data", fontSize = 12.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+                            Text("Menampilkan ${paginatedCourses.size} dari ${filteredCourses.size} data", fontSize = 12.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
                             Row(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(8.dp))
@@ -274,7 +286,7 @@ fun CourseListScreen(
                             Text(text = errorMessage ?: "Error Network", color = Color.Red, fontSize = 14.sp)
                         }
                     }
-                } else if (filteredCourses.isEmpty()) {
+                } else if (paginatedCourses.isEmpty()) {
                     item(span = { GridItemSpan(2) }) {
                         Box(modifier = Modifier
                             .fillMaxWidth()
@@ -284,15 +296,48 @@ fun CourseListScreen(
                     }
                 } else {
                     if (isGridView) {
-                        items(filteredCourses) { course ->
+                        items(paginatedCourses) { course ->
                             GridCourseItem(course, onClick = { onNavigateToDetail(course) })
                         }
                     } else {
-                        items(filteredCourses, span = { GridItemSpan(2) }) { course ->
+                        items(paginatedCourses, span = { GridItemSpan(2) }) { course ->
                             ListCourseItem(course, onClick = { onNavigateToDetail(course) })
                         }
                     }
                 }
+
+                if (totalPages > 1 && !isLoading && errorMessage == null) {
+                    item(span = { GridItemSpan(2) }) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            TextButton(
+                                onClick = { if (currentPage > 1) currentPage-- },
+                                enabled = currentPage > 1
+                            ) {
+                                Icon(Icons.Default.ArrowBack, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Seb", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+
+                            Text("Hal $currentPage / $totalPages", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
+
+                            TextButton(
+                                onClick = { if (currentPage < totalPages) currentPage++ },
+                                enabled = currentPage < totalPages
+                            ) {
+                                Text("Sel", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Icon(Icons.Default.ArrowForward, contentDescription = null, modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    }
+                }
+
                 item(span = { GridItemSpan(2) }) {
                     Spacer(modifier = Modifier.height(24.dp))
                 }
