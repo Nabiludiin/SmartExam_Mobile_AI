@@ -49,6 +49,7 @@ fun AppNavigation(viewModel: ExamViewModel) {
 
             LaunchedEffect(eId) {
                 viewModel.fetchExamHistory(mahasiswaId = 3, examId = eId)
+                viewModel.fetchSingleExam(examId = eId)
             }
 
             val historyList by viewModel.historyList.collectAsState()

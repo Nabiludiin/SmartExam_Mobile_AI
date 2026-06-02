@@ -42,7 +42,7 @@ data class Exam(
     @SerializedName("judul_ujian") val judulUjian: String,
     @SerializedName("tipe_ujian") val tipeUjian: String,
     @SerializedName("durasi_menit") val durasiMenit: Int? = null,
-    @SerializedName("batas_percobaan") val batasPercobaan: Int? = 1
+    @SerializedName("batas_percobaan") val batasPercobaan: Int? = null
 )
 
 data class Question(

@@ -106,6 +106,27 @@ class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
         }
     }
 
+    fun fetchSingleExam(examId: Int) {
+        viewModelScope.launch {
+            try {
+                val response = RetrofitClient.apiService.getExamById("eq.$examId")
+                if (response.isNotEmpty()) {
+                    val examDariDb = response.first()
+                    val listSekarang = _examList.value.toMutableList()
+                    val index = listSekarang.indexOfFirst { it.examId == examId }
+                    if (index != -1) {
+                        listSekarang[index] = examDariDb
+                    } else {
+                        listSekarang.add(examDariDb)
+                    }
+                    _examList.value = listSekarang
+                }
+            } catch (e: Exception) {
+                Log.e("CEK_API", "Error ambil 1 ujian: ${e.message}")
+            }
+        }
+    }
+
     fun fetchQuestionsFromServer(examId: Int) {
         viewModelScope.launch {
             try {
