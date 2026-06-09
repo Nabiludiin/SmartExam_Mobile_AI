@@ -48,7 +48,7 @@ fun CourseDetailScreen(
     onMateriClick: (materiId: Int) -> Unit,
     onLatihanClick: (examId: Int) -> Unit
 ) {
-    // Variabel penampung data dari Database
+
     var course by remember { mutableStateOf<Course?>(null) }
     var daftarMateri by remember { mutableStateOf<List<CourseMaterial>>(emptyList()) }
     var daftarUjian by remember { mutableStateOf<List<Exam>>(emptyList()) }
