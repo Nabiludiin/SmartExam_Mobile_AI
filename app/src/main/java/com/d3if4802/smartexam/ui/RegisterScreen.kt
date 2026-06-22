@@ -72,13 +72,6 @@ fun RegisterScreen(onNavigateToLogin: () -> Unit) {
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
             ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(6.dp)
-                        .background(primaryBlue)
-                )
-
                 Column(
                     modifier = Modifier.padding(24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
@@ -93,7 +86,12 @@ fun RegisterScreen(onNavigateToLogin: () -> Unit) {
                     )
 
                     Spacer(modifier = Modifier.height(16.dp))
-                    Text(text = "Daftar Akun", fontSize = 24.sp, fontWeight = FontWeight.Medium)
+                    Text(
+                        text = "Daftar Akun",
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color.Black
+                    )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = "Bergabunglah dan mulai perjalanan belajar Anda.",
@@ -108,7 +106,7 @@ fun RegisterScreen(onNavigateToLogin: () -> Unit) {
                         value = email,
                         onValueChange = { email = it },
                         label = { Text("Email") },
-                        placeholder = { Text("contoh@mail.com", color = Color.LightGray) },
+                        placeholder = { Text("dummy@gmail.com", color = Color.LightGray) },
                         leadingIcon = { Icon(Icons.Filled.Email, contentDescription = null) },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(8.dp),
@@ -134,7 +132,6 @@ fun RegisterScreen(onNavigateToLogin: () -> Unit) {
                         value = password,
                         onValueChange = {
                             password = it
-                            // Update validasi konfirmasi secara live jika password diubah
                             if (confirmPassword.isNotEmpty()) {
                                 isConfirmError = confirmPassword != password
                             }
@@ -160,7 +157,6 @@ fun RegisterScreen(onNavigateToLogin: () -> Unit) {
                         value = confirmPassword,
                         onValueChange = {
                             confirmPassword = it
-                            // Hanya merah jika isinya tidak kosong DAN tidak sama dengan password
                             isConfirmError = confirmPassword.isNotEmpty() && confirmPassword != password
                         },
                         label = { Text("Konfirmasi Password") },

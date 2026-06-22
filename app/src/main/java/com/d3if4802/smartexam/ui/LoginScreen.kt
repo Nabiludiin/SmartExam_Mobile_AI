@@ -87,7 +87,7 @@ fun LoginScreen(
                         isEmailError = false
                     },
                     label = { Text("Email atau Username") },
-                    placeholder = { Text("Contoh: nama@email.com", color = Color.LightGray) },
+                    placeholder = { Text("nama@gmail.com", color = Color.LightGray) },
                     isError = isEmailError,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(8.dp),
@@ -109,8 +109,8 @@ fun LoginScreen(
                 OutlinedTextField(
                     value = password,
                     onValueChange = { password = it },
-                    label = { Text("Kata Sandi") },
-                    placeholder = { Text("Masukkan kata sandi", color = Color.LightGray) },
+                    label = { Text("Password") },
+                    placeholder = { Text("Masukkan Password", color = Color.LightGray) },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(8.dp),
                     colors = textFieldColors,
