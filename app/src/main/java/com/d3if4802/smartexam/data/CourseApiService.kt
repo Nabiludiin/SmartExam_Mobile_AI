@@ -109,6 +109,16 @@ data class UpdateAttemptRequest(
 )
 
 interface ApiService {
+    @POST("users")
+    suspend fun registerUser(
+        @Body payload: RegisterRequest
+    )
+
+    @GET("users")
+    suspend fun loginUser(
+        @Query("or") emailOrUsername: String,
+        @Query("password") password: String
+    ): List<User>
     @GET("course?select=*,users(nama_lengkap),enrollments(mahasiswa_id)")
     suspend fun getCourses(): List<Course>
 

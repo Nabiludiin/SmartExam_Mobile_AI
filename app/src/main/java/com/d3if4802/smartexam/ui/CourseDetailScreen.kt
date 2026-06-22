@@ -54,7 +54,6 @@ fun CourseDetailScreen(
     var daftarUjian by remember { mutableStateOf<List<Exam>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
 
-    // Proses Menarik Data dari API saat layar dibuka
     LaunchedEffect(courseId) {
         try {
             val courses = RetrofitClient.apiService.getCourses()
@@ -216,7 +215,6 @@ fun CourseDetailScreen(
                         Spacer(modifier = Modifier.height(12.dp))
                     }
                 }
-
                 Spacer(modifier = Modifier.height(32.dp))
             }
         }

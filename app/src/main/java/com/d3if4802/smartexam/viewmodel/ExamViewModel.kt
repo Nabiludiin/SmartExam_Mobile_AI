@@ -11,6 +11,7 @@ import com.d3if4802.smartexam.data.CreateAttemptRequest
 import com.d3if4802.smartexam.data.Exam
 import com.d3if4802.smartexam.data.ExamAttempt
 import com.d3if4802.smartexam.data.Question
+import com.d3if4802.smartexam.data.RegisterRequest
 import com.d3if4802.smartexam.data.RetrofitClient
 import com.d3if4802.smartexam.data.SubmitAnswerRequest
 import com.d3if4802.smartexam.data.UpdateAttemptRequest
@@ -26,6 +27,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
+
+    val currentUserId = MutableStateFlow(0)
+    val authErrorMessage = MutableStateFlow<String?>(null)
 
     private val _materialList = MutableStateFlow<List<CourseMaterial>>(emptyList())
     val materialList: StateFlow<List<CourseMaterial>> = _materialList.asStateFlow()
@@ -66,6 +70,57 @@ class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
 
     init {
         fetchAllAnswers()
+    }
+
+    fun register(emailInput: String, usernameInput: String, passwordInput: String, onSuccess: () -> Unit) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            authErrorMessage.value = null
+            try {
+                val payload = RegisterRequest(
+                    username = usernameInput,
+                    email = emailInput,
+                    password = passwordInput
+                )
+                RetrofitClient.apiService.registerUser(payload)
+                _isLoading.value = false
+                onSuccess()
+            } catch (e: Exception) {
+                _isLoading.value = false
+                authErrorMessage.value = "Gagal mendaftar: Pastikan Email/Username belum terpakai."
+                Log.e("CEK_API", "Error Register: ${e.message}")
+            }
+        }
+    }
+
+    fun login(emailOrUsername: String, passwordInput: String, onSuccess: () -> Unit) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            authErrorMessage.value = null
+            try {
+                val queryOr = "(email.eq.$emailOrUsername,username.eq.$emailOrUsername)"
+                val queryPassword = "eq.$passwordInput"
+
+                val response = RetrofitClient.apiService.loginUser(
+                    emailOrUsername = queryOr,
+                    password = queryPassword
+                )
+
+                _isLoading.value = false
+
+                if (response.isNotEmpty()) {
+                    val loggedInUser = response.first()
+                    currentUserId.value = loggedInUser.user_id
+                    onSuccess()
+                } else {
+                    authErrorMessage.value = "Email/Username atau Password salah."
+                }
+            } catch (e: Exception) {
+                _isLoading.value = false
+                authErrorMessage.value = "Terjadi kesalahan jaringan."
+                Log.e("CEK_API", "Error Login: ${e.message}")
+            }
+        }
     }
 
     fun fetchMaterialsByCourse(courseId: Int) {

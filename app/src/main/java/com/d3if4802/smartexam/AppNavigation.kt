@@ -15,7 +15,28 @@ import com.d3if4802.smartexam.viewmodel.ExamViewModel
 fun AppNavigation(viewModel: ExamViewModel) {
     val navController = rememberNavController()
 
-    NavHost(navController = navController, startDestination = "course_list") {
+    NavHost(navController = navController, startDestination = "login") {
+
+        composable("login") {
+            LoginScreen(
+                onNavigateToRegister = {
+                    navController.navigate("register")
+                },
+                onLoginSuccess = {
+                    navController.navigate("course_list") {
+                        popUpTo("login") { inclusive = true }
+                    }
+                }
+            )
+        }
+
+        composable("register") {
+            RegisterScreen(
+                onNavigateToLogin = {
+                    navController.popBackStack()
+                }
+            )
+        }
 
         composable("course_list") {
             CourseListScreen(
@@ -46,9 +67,12 @@ fun AppNavigation(viewModel: ExamViewModel) {
             arguments = listOf(navArgument("examId") { type = NavType.IntType })
         ) { backStackEntry ->
             val eId = backStackEntry.arguments?.getInt("examId") ?: 0
+            val mId by viewModel.currentUserId.collectAsState(initial = 0)
 
-            LaunchedEffect(eId) {
-                viewModel.fetchExamHistory(mahasiswaId = 3, examId = eId)
+            LaunchedEffect(eId, mId) {
+                if (mId != 0) {
+                    viewModel.fetchExamHistory(mahasiswaId = mId, examId = eId)
+                }
                 viewModel.fetchSingleExam(examId = eId)
             }
 
@@ -65,7 +89,6 @@ fun AppNavigation(viewModel: ExamViewModel) {
                     navController.navigate("exam/$eId")
                 },
                 onReviewClick = {
-                    val mId = 3
                     navController.navigate("review/$mId/$eId")
                 }
             )
@@ -108,7 +131,7 @@ fun AppNavigation(viewModel: ExamViewModel) {
                 navArgument("examId") { type = NavType.IntType }
             )
         ) { backStackEntry ->
-            val mId = backStackEntry.arguments?.getInt("mahasiswaId") ?: 3
+            val mId = backStackEntry.arguments?.getInt("mahasiswaId") ?: 0
             val eId = backStackEntry.arguments?.getInt("examId") ?: 0
 
             HistoryScreen(
@@ -127,7 +150,7 @@ fun AppNavigation(viewModel: ExamViewModel) {
                 navArgument("examId") { type = NavType.IntType }
             )
         ) { backStackEntry ->
-            val mId = backStackEntry.arguments?.getInt("mahasiswaId") ?: 3
+            val mId = backStackEntry.arguments?.getInt("mahasiswaId") ?: 0
             val eId = backStackEntry.arguments?.getInt("examId") ?: 0
 
             ReviewScreen(
