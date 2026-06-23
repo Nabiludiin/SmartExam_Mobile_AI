@@ -29,7 +29,9 @@ import kotlinx.coroutines.launch
 class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
 
     val currentUserId = MutableStateFlow(0)
-    val authErrorMessage = MutableStateFlow<String?>(null)
+
+    val loginErrorMessage = MutableStateFlow<String?>(null)
+    val registerErrorMessage = MutableStateFlow<String?>(null)
 
     private val _materialList = MutableStateFlow<List<CourseMaterial>>(emptyList())
     val materialList: StateFlow<List<CourseMaterial>> = _materialList.asStateFlow()
@@ -75,20 +77,25 @@ class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
     fun register(emailInput: String, usernameInput: String, passwordInput: String, onSuccess: () -> Unit) {
         viewModelScope.launch {
             _isLoading.value = true
-            authErrorMessage.value = null
+            registerErrorMessage.value = null
             try {
                 val payload = RegisterRequest(
                     username = usernameInput,
                     email = emailInput,
-                    password = passwordInput
+                    password = passwordInput,
+                    nama_lengkap = usernameInput
                 )
                 RetrofitClient.apiService.registerUser(payload)
                 _isLoading.value = false
                 onSuccess()
+            } catch (e: retrofit2.HttpException) {
+                _isLoading.value = false
+                registerErrorMessage.value = "Gagal mendaftar (Error ${e.code()})"
+                Log.e("CEK_API", "Error Register HTTP: ${e.response()?.errorBody()?.string()}")
             } catch (e: Exception) {
                 _isLoading.value = false
-                authErrorMessage.value = "Gagal mendaftar: Pastikan Email/Username belum terpakai."
-                Log.e("CEK_API", "Error Register: ${e.message}")
+                registerErrorMessage.value = "Gagal mendaftar: Jaringan bermasalah."
+                Log.e("CEK_API", "Error Register Umum: ${e.message}")
             }
         }
     }
@@ -96,7 +103,7 @@ class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
     fun login(emailOrUsername: String, passwordInput: String, onSuccess: () -> Unit) {
         viewModelScope.launch {
             _isLoading.value = true
-            authErrorMessage.value = null
+            loginErrorMessage.value = null
             try {
                 val queryOr = "(email.eq.$emailOrUsername,username.eq.$emailOrUsername)"
                 val queryPassword = "eq.$passwordInput"
@@ -113,11 +120,11 @@ class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
                     currentUserId.value = loggedInUser.user_id
                     onSuccess()
                 } else {
-                    authErrorMessage.value = "Email/Username atau Password salah."
+                    loginErrorMessage.value = "Email/Username atau Password salah."
                 }
             } catch (e: Exception) {
                 _isLoading.value = false
-                authErrorMessage.value = "Terjadi kesalahan jaringan."
+                loginErrorMessage.value = "Terjadi kesalahan jaringan."
                 Log.e("CEK_API", "Error Login: ${e.message}")
             }
         }
@@ -396,33 +403,57 @@ class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
                             ATURAN WAJIB (JIKA DILANGGAR SISTEM AKAN ERROR):
                             1. DILARANG KERAS menggunakan simbol bintang (*), *bold, atau markdown apapun.
                             2. DILARANG menambahkan kalimat sapaan, penjelasan tambahan, atau teks penutup.
-                            3. HANYA keluarkan 2 baris teks persis seperti format di bawah ini.
+                            3. HANYA keluarkan 3 baris teks persis seperti format di bawah ini.
                             
                             SKOR: [Isi dengan 1 angka bulat antara 0 sampai $maxSkor]
                             FEEDBACK: [Isi dengan 1-2 kalimat objektif alasan penilaian]
+                            CONFIDENCE: [Isi dengan 1 angka bulat antara 0 sampai 100 seberapa yakin Anda dengan skor tersebut]
                         """.trimIndent()
-
-                        val response = generativeModel.generateContent(prompt)
-                        val aiResult = response.text?.replace("*", "")?.trim() ?: ""
 
                         var skorAi = 0
                         var feedbackAi = "Gagal memproses feedback"
+                        var confidenceAi = 0
 
-                        val regexSkor = Regex("(?i)SKOR:\\s*(\\d+)")
-                        val regexFeedback = Regex("(?i)FEEDBACK:\\s*(.+)", RegexOption.DOT_MATCHES_ALL)
+                        var retryCount = 0
+                        val maxRetries = 3
+                        var success = false
 
-                        val matchSkor = regexSkor.find(aiResult)
-                        val matchFeedback = regexFeedback.find(aiResult)
+                        while (!success && retryCount < maxRetries) {
+                            try {
+                                val response = generativeModel.generateContent(prompt)
+                                val aiResult = response.text?.replace("*", "")?.trim() ?: ""
 
-                        if (matchSkor != null && matchFeedback != null) {
-                            skorAi = matchSkor.groupValues[1].toIntOrNull() ?: 0
-                            feedbackAi = matchFeedback.groupValues[1].trim()
-                            totalSkorDiperoleh += skorAi
-                        } else {
-                            feedbackAi = "Catatan Sistem: Format balasan AI salah -> $aiResult"
+                                val regexSkor = Regex("(?i)SKOR:\\s*(\\d+)")
+                                val regexFeedback = Regex("(?i)FEEDBACK:\\s*(.+)", RegexOption.DOT_MATCHES_ALL)
+                                val regexConfidence = Regex("(?i)CONFIDENCE:\\s*(\\d+)")
+
+                                val matchSkor = regexSkor.find(aiResult)
+                                val matchFeedback = regexFeedback.find(aiResult)
+                                val matchConfidence = regexConfidence.find(aiResult)
+
+                                if (matchSkor != null && matchFeedback != null) {
+                                    skorAi = matchSkor.groupValues[1].toIntOrNull() ?: 0
+                                    feedbackAi = matchFeedback.groupValues[1].trim()
+                                    confidenceAi = matchConfidence?.groupValues?.get(1)?.toIntOrNull() ?: 0
+
+                                    totalSkorDiperoleh += skorAi
+                                    success = true
+                                } else {
+                                    feedbackAi = "Catatan Sistem: Format balasan AI salah -> $aiResult"
+                                    success = true
+                                }
+                            } catch (e: Exception) {
+                                retryCount++
+                                Log.e("CEK_AI", "Error Gemini pada percobaan $retryCount: ${e.message}")
+                                if (retryCount >= maxRetries) {
+                                    feedbackAi = "Server AI sedang penuh (High Demand). Silakan coba lagi nanti."
+                                    break
+                                }
+                                delay(2000L * retryCount)
+                            }
                         }
 
-                        updateSkorKeServer(mahasiswaId, soalTerkait.id, skorAi, feedbackAi, "Dinilai AI")
+                        updateSkorKeServer(mahasiswaId, soalTerkait.id, skorAi, feedbackAi, "Dinilai AI", confidenceAi)
                     }
                 }
 
@@ -458,13 +489,14 @@ class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
         }
     }
 
-    fun updateSkorKeServer(mahasiswaId: Int, questionId: Int, skorAi: Int, feedback: String, status: String) {
+    fun updateSkorKeServer(mahasiswaId: Int, questionId: Int, skorAi: Int, feedback: String, status: String, confidence: Int = 0) {
         viewModelScope.launch {
             try {
                 val payload = UpdateScoreRequest(
                     skorAi = skorAi,
                     feedback = feedback,
-                    statusVerifikasi = status
+                    statusVerifikasi = status,
+                    aiConfidence = confidence
                 )
 
                 RetrofitClient.apiService.updateAssessmentScore(

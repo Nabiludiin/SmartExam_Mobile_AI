@@ -19,6 +19,7 @@ fun AppNavigation(viewModel: ExamViewModel) {
 
         composable("login") {
             LoginScreen(
+                viewModel = viewModel,
                 onNavigateToRegister = {
                     navController.navigate("register")
                 },
@@ -32,6 +33,7 @@ fun AppNavigation(viewModel: ExamViewModel) {
 
         composable("register") {
             RegisterScreen(
+                viewModel = viewModel,
                 onNavigateToLogin = {
                     navController.popBackStack()
                 }

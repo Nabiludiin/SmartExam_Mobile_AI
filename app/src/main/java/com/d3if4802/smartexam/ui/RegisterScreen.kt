@@ -29,9 +29,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.d3if4802.smartexam.R
+import com.d3if4802.smartexam.viewmodel.ExamViewModel
 
 @Composable
-fun RegisterScreen(onNavigateToLogin: () -> Unit) {
+fun RegisterScreen(
+    viewModel: ExamViewModel, // Tambahan ViewModel untuk akses API
+    onNavigateToLogin: () -> Unit
+) {
     var email by remember { mutableStateOf("") }
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -41,6 +45,9 @@ fun RegisterScreen(onNavigateToLogin: () -> Unit) {
     var confirmPasswordVisible by remember { mutableStateOf(false) }
 
     var isConfirmError by remember { mutableStateOf(false) }
+
+    val isLoading by viewModel.isLoading.collectAsState()
+    val errorMessage by viewModel.registerErrorMessage.collectAsState()
 
     val primaryBlue = Color(0xFF004B93)
     val backgroundGray = Color(0xFFF8F9FA)
@@ -110,7 +117,8 @@ fun RegisterScreen(onNavigateToLogin: () -> Unit) {
                         leadingIcon = { Icon(Icons.Filled.Email, contentDescription = null) },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(8.dp),
-                        colors = textFieldColors
+                        colors = textFieldColors,
+                        enabled = !isLoading
                     )
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -123,7 +131,8 @@ fun RegisterScreen(onNavigateToLogin: () -> Unit) {
                         leadingIcon = { Icon(Icons.Filled.Person, contentDescription = null) },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(8.dp),
-                        colors = textFieldColors
+                        colors = textFieldColors,
+                        enabled = !isLoading
                     )
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -148,7 +157,8 @@ fun RegisterScreen(onNavigateToLogin: () -> Unit) {
                             IconButton(onClick = { passwordVisible = !passwordVisible }) {
                                 Icon(imageVector = image, contentDescription = null)
                             }
-                        }
+                        },
+                        enabled = !isLoading
                     )
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -183,23 +193,49 @@ fun RegisterScreen(onNavigateToLogin: () -> Unit) {
                                     Text("Password tidak sama")
                                 }
                             }
-                        }
+                        },
+                        enabled = !isLoading
                     )
+
+                    // Tampilkan pesan error dari API jika ada
+                    if (errorMessage != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = errorMessage ?: "",
+                            color = MaterialTheme.colorScheme.error,
+                            fontSize = 14.sp,
+                            textAlign = TextAlign.Center
+                        )
+                    }
 
                     Spacer(modifier = Modifier.height(32.dp))
 
                     Button(
-                        onClick = { /* Handle Register */ },
+                        onClick = {
+                            if (email.isNotBlank() && username.isNotBlank() && password.isNotBlank() && !isConfirmError) {
+                                viewModel.register(
+                                    emailInput = email,
+                                    usernameInput = username,
+                                    passwordInput = password,
+                                    onSuccess = { onNavigateToLogin() }
+                                )
+                            }
+                        },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(50.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = primaryBlue),
-                        shape = RoundedCornerShape(25.dp)
+                        shape = RoundedCornerShape(25.dp),
+                        enabled = !isLoading
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Daftar", fontSize = 16.sp, color = Color.White)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = Color.White)
+                        if (isLoading) {
+                            CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
+                        } else {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("Daftar", fontSize = 16.sp, color = Color.White)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = Color.White)
+                            }
                         }
                     }
 
@@ -211,7 +247,7 @@ fun RegisterScreen(onNavigateToLogin: () -> Unit) {
                             text = "Login",
                             color = primaryBlue,
                             fontWeight = FontWeight.Bold,
-                            modifier = Modifier.clickable { onNavigateToLogin() }
+                            modifier = Modifier.clickable(enabled = !isLoading) { onNavigateToLogin() }
                         )
                     }
                 }

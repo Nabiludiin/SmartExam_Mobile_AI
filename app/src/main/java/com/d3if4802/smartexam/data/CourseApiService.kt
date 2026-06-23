@@ -99,7 +99,8 @@ data class AssessmentResult(
 data class UpdateScoreRequest(
     @SerializedName("skor_ai") val skorAi: Int,
     @SerializedName("feedback") val feedback: String,
-    @SerializedName("status_verifikasi") val statusVerifikasi: String
+    @SerializedName("status_verifikasi") val statusVerifikasi: String,
+    @SerializedName("ai_confidence") val aiConfidence: Int? = null
 )
 
 data class UpdateAttemptRequest(
@@ -119,6 +120,7 @@ interface ApiService {
         @Query("or") emailOrUsername: String,
         @Query("password") password: String
     ): List<User>
+
     @GET("course?select=*,users(nama_lengkap),enrollments(mahasiswa_id)")
     suspend fun getCourses(): List<Course>
 
@@ -171,7 +173,7 @@ interface ApiService {
 }
 
 object RetrofitClient {
-    private const val BASE_URL = "http://172.27.43.192:3000/"
+    private const val BASE_URL = "http://172.23.75.192:3000/"
 
     val apiService: ApiService by lazy {
         Retrofit.Builder()

@@ -9,10 +9,10 @@ data class User(
     val terdaftar_pada: String?
 )
 
-
 data class RegisterRequest(
     val username: String,
     val email: String,
     val password: String,
+    val nama_lengkap: String,
     val role: String = "mahasiswa"
 )

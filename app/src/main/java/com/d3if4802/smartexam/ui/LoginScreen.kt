@@ -19,12 +19,15 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.d3if4802.smartexam.R
+import com.d3if4802.smartexam.viewmodel.ExamViewModel
 
 @Composable
 fun LoginScreen(
+    viewModel: ExamViewModel,
     onNavigateToRegister: () -> Unit,
     onLoginSuccess: () -> Unit
 ) {
@@ -32,6 +35,9 @@ fun LoginScreen(
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     var isEmailError by remember { mutableStateOf(false) }
+
+    val isLoading by viewModel.isLoading.collectAsState()
+    val errorMessage by viewModel.loginErrorMessage.collectAsState()
 
     val primaryBlue = Color(0xFF004B93)
     val backgroundGray = Color(0xFFF8F9FA)
@@ -92,6 +98,7 @@ fun LoginScreen(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(8.dp),
                     colors = textFieldColors,
+                    enabled = !isLoading,
                     trailingIcon = {
                         if (isEmailError) {
                             Icon(Icons.Filled.ErrorOutline, "Error", tint = MaterialTheme.colorScheme.error)
@@ -114,6 +121,7 @@ fun LoginScreen(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(8.dp),
                     colors = textFieldColors,
+                    enabled = !isLoading,
                     visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                     trailingIcon = {
                         val image = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
@@ -123,17 +131,41 @@ fun LoginScreen(
                     }
                 )
 
+                if (errorMessage != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = errorMessage ?: "",
+                        color = MaterialTheme.colorScheme.error,
+                        fontSize = 14.sp,
+                        textAlign = TextAlign.Center
+                    )
+                }
+
                 Spacer(modifier = Modifier.height(32.dp))
 
                 Button(
-                    onClick = { onLoginSuccess() },
+                    onClick = {
+                        // Jalankan fungsi login jika form tidak kosong
+                        if (emailOrUsername.isNotBlank() && password.isNotBlank()) {
+                            viewModel.login(
+                                emailOrUsername = emailOrUsername,
+                                passwordInput = password,
+                                onSuccess = { onLoginSuccess() }
+                            )
+                        }
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(50.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = primaryBlue),
-                    shape = RoundedCornerShape(25.dp)
+                    shape = RoundedCornerShape(25.dp),
+                    enabled = !isLoading
                 ) {
-                    Text("Masuk", fontSize = 16.sp, color = Color.White)
+                    if (isLoading) {
+                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
+                    } else {
+                        Text("Masuk", fontSize = 16.sp, color = Color.White)
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(24.dp))
@@ -144,7 +176,7 @@ fun LoginScreen(
                         text = "Daftar sekarang",
                         color = primaryBlue,
                         fontWeight = FontWeight.Bold,
-                        modifier = Modifier.clickable { onNavigateToRegister() }
+                        modifier = Modifier.clickable(enabled = !isLoading) { onNavigateToRegister() }
                     )
                 }
             }

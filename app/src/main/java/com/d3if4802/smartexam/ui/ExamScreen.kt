@@ -57,6 +57,9 @@ fun ExamScreen(
     var showBottomSheet by remember { mutableStateOf(false) }
     var showExitDialog by remember { mutableStateOf(false) }
 
+    // TAMBAHAN: Ambil ID user yang sedang aktif
+    val mId by viewModel.currentUserId.collectAsState()
+
     val questions = viewModel.questions.collectAsState().value
     val answerText by viewModel.jawabanState.collectAsState()
     val timeLeft by viewModel.timeLeftString.collectAsState()
@@ -93,7 +96,8 @@ fun ExamScreen(
     LaunchedEffect(isTimeUp) {
         if (isTimeUp && questions.isNotEmpty()) {
             hasSubmitted = true
-            viewModel.kirimSemuaJawabanKeServer(mahasiswaId = 3)
+            // PERBAIKAN: Gunakan mId, bukan 3
+            viewModel.kirimSemuaJawabanKeServer(mahasiswaId = mId)
         }
     }
 
@@ -175,7 +179,8 @@ fun ExamScreen(
                         onNext = { viewModel.soalSelanjutnya() },
                         onFinish = {
                             hasSubmitted = true
-                            viewModel.kirimSemuaJawabanKeServer(mahasiswaId = 3)
+                            // PERBAIKAN: Gunakan mId, bukan 3
+                            viewModel.kirimSemuaJawabanKeServer(mahasiswaId = mId)
                         }
                     )
                 }
