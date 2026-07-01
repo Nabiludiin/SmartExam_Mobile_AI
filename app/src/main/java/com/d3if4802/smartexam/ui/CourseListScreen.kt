@@ -78,7 +78,7 @@ fun CourseListScreen(
 
     val pullRefreshState = rememberPullRefreshState(
         refreshing = isLoading,
-        onRefresh = { viewModel.fetchCourses() }
+        onRefresh = { viewModel.fetchCoursesFromApi() }
     )
 
     val displayError = if (errorMessage?.contains("Unable to resolve host") == true || errorMessage?.contains("timeout") == true) {
