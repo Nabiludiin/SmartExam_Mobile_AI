@@ -145,7 +145,6 @@ fun LoginScreen(
 
                 Button(
                     onClick = {
-                        // Jalankan fungsi login jika form tidak kosong
                         if (emailOrUsername.isNotBlank() && password.isNotBlank()) {
                             viewModel.login(
                                 emailOrUsername = emailOrUsername,

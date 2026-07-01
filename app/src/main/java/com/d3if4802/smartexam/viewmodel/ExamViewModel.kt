@@ -1,9 +1,14 @@
 package com.d3if4802.smartexam.viewmodel
 
+import android.content.Context
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import androidx.work.Constraints
+import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
 import com.d3if4802.smartexam.BuildConfig
 import com.d3if4802.smartexam.data.AssessmentResult
 import com.d3if4802.smartexam.data.CourseMaterial
@@ -25,6 +30,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.io.IOException
+import java.net.UnknownHostException
 
 class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
 
@@ -32,6 +39,7 @@ class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
 
     val loginErrorMessage = MutableStateFlow<String?>(null)
     val registerErrorMessage = MutableStateFlow<String?>(null)
+    val submitMessage = MutableStateFlow<String?>(null)
 
     private val _materialList = MutableStateFlow<List<CourseMaterial>>(emptyList())
     val materialList: StateFlow<List<CourseMaterial>> = _materialList.asStateFlow()
@@ -197,6 +205,7 @@ class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
                 _currentQuestionIndex.value = 0
                 isSubmitting = false
                 _isLoading.value = false
+                submitMessage.value = null
                 timerJob?.cancel()
 
                 val examResponse = RetrofitClient.apiService.getExamById("eq.$examId")
@@ -264,6 +273,7 @@ class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
             timerJob?.cancel()
             isSubmitting = false
             _isLoading.value = false
+            submitMessage.value = null
         }
     }
 
@@ -320,10 +330,23 @@ class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
         }
     }
 
-    fun kirimSemuaJawabanKeServer(mahasiswaId: Int) {
+    private fun jadwalkanPengirimanOtomatis(context: Context) {
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
+
+        val syncWorkRequest = OneTimeWorkRequestBuilder<com.d3if4802.smartexam.worker.SyncAnswersWorker>()
+            .setConstraints(constraints)
+            .build()
+
+        WorkManager.getInstance(context).enqueue(syncWorkRequest)
+    }
+
+    fun kirimSemuaJawabanKeServer(mahasiswaId: Int, context: Context) {
         if (isSubmitting) return
         isSubmitting = true
         _isLoading.value = true
+        submitMessage.value = null
 
         viewModelScope.launch {
             try {
@@ -359,6 +382,12 @@ class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
                 nilaiSemuaJawabanDenganAI(mahasiswaId, percobaanKe, totalMaxScore)
 
             } catch (e: Exception) {
+                if (e is UnknownHostException || e is IOException) {
+                    submitMessage.value = "Koneksi terputus. Jawaban diamankan di perangkat dan akan dikirim otomatis saat online."
+                    jadwalkanPengirimanOtomatis(context)
+                } else {
+                    submitMessage.value = "Gagal mengirim jawaban: ${e.message}"
+                }
                 Log.e("CEK_API", "Error: ${e.message}")
                 isSubmitting = false
                 _isLoading.value = false
@@ -374,6 +403,7 @@ class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
                     Log.e("CEK_AI", "API Key KOSONG")
                     isSubmitting = false
                     _isLoading.value = false
+                    submitMessage.value = "API Key Gemini kosong."
                     return@launch
                 }
 
@@ -478,11 +508,13 @@ class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
                     payload = updatePayload
                 )
 
+                submitMessage.value = "Ujian selesai dan berhasil dinilai!"
                 isSubmitting = false
                 _isLoading.value = false
 
             } catch (e: Exception) {
                 Log.e("CEK_AI", "ERROR FATAL: ${e.message}")
+                submitMessage.value = "Gagal memproses penilaian AI."
                 isSubmitting = false
                 _isLoading.value = false
             }

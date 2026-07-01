@@ -11,9 +11,13 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.pullrefresh.PullRefreshIndicator
+import androidx.compose.material.pullrefresh.pullRefresh
+import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,6 +28,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -48,7 +53,7 @@ fun getImageUrlByCategory(kategori: String?): String {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class)
 @Composable
 fun CourseListScreen(
     viewModel: CourseViewModel = viewModel(),
@@ -70,6 +75,17 @@ fun CourseListScreen(
     val allCourses by viewModel.courseList.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
+
+    val pullRefreshState = rememberPullRefreshState(
+        refreshing = isLoading,
+        onRefresh = { viewModel.fetchCourses() }
+    )
+
+    val displayError = if (errorMessage?.contains("Unable to resolve host") == true || errorMessage?.contains("timeout") == true) {
+        "Koneksi internet terputus. Pastikan jaringanmu stabil, lalu tarik layar ke bawah untuk memuat ulang."
+    } else {
+        errorMessage
+    }
 
     LaunchedEffect(searchQuery, selectedCategory) {
         currentPage = 1
@@ -108,7 +124,7 @@ fun CourseListScreen(
                     title = {
                         Image(
                             painter = painterResource(id = R.drawable.logo_smartexam),
-                            contentDescription = "Logo Smart Exam",
+                            contentDescription = null,
                             modifier = Modifier
                                 .height(32.dp)
                                 .padding(start = 8.dp),
@@ -124,7 +140,7 @@ fun CourseListScreen(
                                 .background(Color.LightGray),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Default.Person, contentDescription = "Profile", tint = Color.White)
+                            Icon(Icons.Default.Person, contentDescription = null, tint = Color.White)
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
@@ -137,57 +153,37 @@ fun CourseListScreen(
             },
             containerColor = ColorBackgroundLight
         ) { paddingValues ->
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
-                    .padding(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                    .pullRefresh(pullRefreshState)
             ) {
-                item(span = { GridItemSpan(2) }) {
-                    Column {
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(stringResource(R.string.title_course_list), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(stringResource(R.string.subtitle_course_list), fontSize = 13.sp, color = Color.Gray)
-                        Spacer(modifier = Modifier.height(16.dp))
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(2),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 20.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    item(span = { GridItemSpan(2) }) {
+                        Column {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(stringResource(R.string.title_course_list), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(stringResource(R.string.subtitle_course_list), fontSize = 13.sp, color = Color.Gray)
+                            Spacer(modifier = Modifier.height(16.dp))
 
-                        Text("Nama Mata Kuliah", fontSize = 12.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        OutlinedTextField(
-                            value = searchQuery,
-                            onValueChange = { searchQuery = it },
-                            placeholder = { Text(stringResource(R.string.hint_search_course), color = Color.Gray) },
-                            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color.Gray) },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(8.dp),
-                            textStyle = LocalTextStyle.current.copy(color = Color.Black),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = ColorPrimaryBlue,
-                                unfocusedBorderColor = ColorCardBorder,
-                                focusedTextColor = Color.Black,
-                                unfocusedTextColor = Color.Black
-                            )
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        Text("Kategori", fontSize = 12.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        ExposedDropdownMenuBox(
-                            expanded = expanded,
-                            onExpandedChange = { expanded = !expanded }
-                        ) {
+                            Text("Nama Mata Kuliah", fontSize = 12.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+                            Spacer(modifier = Modifier.height(4.dp))
                             OutlinedTextField(
-                                value = selectedCategory,
-                                onValueChange = {},
-                                readOnly = true,
-                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .menuAnchor(),
+                                value = searchQuery,
+                                onValueChange = { searchQuery = it },
+                                placeholder = { Text(stringResource(R.string.hint_search_course), color = Color.Gray) },
+                                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color.Gray) },
+                                modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(8.dp),
                                 textStyle = LocalTextStyle.current.copy(color = Color.Black),
                                 colors = OutlinedTextFieldDefaults.colors(
@@ -197,150 +193,188 @@ fun CourseListScreen(
                                     unfocusedTextColor = Color.Black
                                 )
                             )
-                            ExposedDropdownMenu(
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            Text("Kategori", fontSize = 12.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            ExposedDropdownMenuBox(
                                 expanded = expanded,
-                                onDismissRequest = { expanded = false },
-                                modifier = Modifier.background(Color.White)
+                                onExpandedChange = { expanded = !expanded }
                             ) {
-                                categories.forEach { item ->
-                                    DropdownMenuItem(
-                                        text = { Text(text = item, color = Color.Black) },
-                                        onClick = {
-                                            selectedCategory = item
-                                            expanded = false
-                                        }
+                                OutlinedTextField(
+                                    value = selectedCategory,
+                                    onValueChange = {},
+                                    readOnly = true,
+                                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .menuAnchor(),
+                                    shape = RoundedCornerShape(8.dp),
+                                    textStyle = LocalTextStyle.current.copy(color = Color.Black),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = ColorPrimaryBlue,
+                                        unfocusedBorderColor = ColorCardBorder,
+                                        focusedTextColor = Color.Black,
+                                        unfocusedTextColor = Color.Black
                                     )
-                                }
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(20.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("Menampilkan ${paginatedCourses.size} dari ${filteredCourses.size} data", fontSize = 12.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
-                            Row(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(Color(0xFFE2E8F0))
-                                    .padding(2.dp)
-                            ) {
-                                IconButton(
-                                    onClick = { isGridView = false },
-                                    modifier = Modifier
-                                        .size(32.dp)
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(if (!isGridView) Color.White else Color.Transparent)
+                                )
+                                ExposedDropdownMenu(
+                                    expanded = expanded,
+                                    onDismissRequest = { expanded = false },
+                                    modifier = Modifier.background(Color.White)
                                 ) {
-                                    Icon(Icons.Default.ViewList, contentDescription = "List View", tint = if (!isGridView) ColorPrimaryBlue else Color.Gray)
-                                }
-                                IconButton(
-                                    onClick = { isGridView = true },
-                                    modifier = Modifier
-                                        .size(32.dp)
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(if (isGridView) Color.White else Color.Transparent)
-                                ) {
-                                    Icon(Icons.Default.GridView, contentDescription = "Grid View", tint = if (isGridView) ColorPrimaryBlue else Color.Gray)
-                                }
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        if (selectedCategory != "Semua") {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("Difilter berdasarkan : ", fontSize = 12.sp, color = Color.Gray)
-                                Surface(color = Color(0xFFE0E7FF), shape = RoundedCornerShape(16.dp)) {
-                                    Row(
-                                        modifier = Modifier
-                                            .padding(horizontal = 12.dp, vertical = 6.dp)
-                                            .clickable { selectedCategory = "Semua" },
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text("Kategori : $selectedCategory", fontSize = 12.sp, color = ColorPrimaryBlue)
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Icon(Icons.Default.Close, contentDescription = "Remove", tint = ColorPrimaryBlue, modifier = Modifier.size(14.dp))
+                                    categories.forEach { item ->
+                                        DropdownMenuItem(
+                                            text = { Text(text = item, color = Color.Black) },
+                                            onClick = {
+                                                selectedCategory = item
+                                                expanded = false
+                                            }
+                                        )
                                     }
                                 }
                             }
-                        }
-                        Spacer(modifier = Modifier.height(4.dp))
-                    }
-                }
+                            Spacer(modifier = Modifier.height(20.dp))
 
-                if (isLoading) {
-                    item(span = { GridItemSpan(2) }) {
-                        Box(modifier = Modifier
-                            .fillMaxWidth()
-                            .height(200.dp), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(color = ColorPrimaryBlue)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Menampilkan ${paginatedCourses.size} dari ${filteredCourses.size} data", fontSize = 12.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+                                Row(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(Color(0xFFE2E8F0))
+                                        .padding(2.dp)
+                                ) {
+                                    IconButton(
+                                        onClick = { isGridView = false },
+                                        modifier = Modifier
+                                            .size(32.dp)
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(if (!isGridView) Color.White else Color.Transparent)
+                                    ) {
+                                        Icon(Icons.Default.ViewList, contentDescription = null, tint = if (!isGridView) ColorPrimaryBlue else Color.Gray)
+                                    }
+                                    IconButton(
+                                        onClick = { isGridView = true },
+                                        modifier = Modifier
+                                            .size(32.dp)
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(if (isGridView) Color.White else Color.Transparent)
+                                    ) {
+                                        Icon(Icons.Default.GridView, contentDescription = null, tint = if (isGridView) ColorPrimaryBlue else Color.Gray)
+                                    }
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            if (selectedCategory != "Semua") {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("Difilter berdasarkan : ", fontSize = 12.sp, color = Color.Gray)
+                                    Surface(color = Color(0xFFE0E7FF), shape = RoundedCornerShape(16.dp)) {
+                                        Row(
+                                            modifier = Modifier
+                                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                                                .clickable { selectedCategory = "Semua" },
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text("Kategori : $selectedCategory", fontSize = 12.sp, color = ColorPrimaryBlue)
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Icon(Icons.Default.Close, contentDescription = null, tint = ColorPrimaryBlue, modifier = Modifier.size(14.dp))
+                                        }
+                                    }
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
                         }
                     }
-                } else if (errorMessage != null) {
-                    item(span = { GridItemSpan(2) }) {
-                        Box(modifier = Modifier
-                            .fillMaxWidth()
-                            .height(200.dp), contentAlignment = Alignment.Center) {
-                            Text(text = errorMessage ?: "Error Network", color = Color.Red, fontSize = 14.sp)
+
+                    if (isLoading && paginatedCourses.isEmpty()) {
+                        item(span = { GridItemSpan(2) }) {
+                            Box(modifier = Modifier
+                                .fillMaxWidth()
+                                .height(200.dp), contentAlignment = Alignment.Center) {
+                            }
                         }
-                    }
-                } else if (paginatedCourses.isEmpty()) {
-                    item(span = { GridItemSpan(2) }) {
-                        Box(modifier = Modifier
-                            .fillMaxWidth()
-                            .height(200.dp), contentAlignment = Alignment.Center) {
-                            Text("Mata kuliah tidak ditemukan.", color = Color.Gray)
+                    } else if (displayError != null) {
+                        item(span = { GridItemSpan(2) }) {
+                            Box(modifier = Modifier
+                                .fillMaxWidth()
+                                .height(200.dp)
+                                .padding(horizontal = 16.dp), contentAlignment = Alignment.Center) {
+                                Text(
+                                    text = displayError,
+                                    color = Color.Red,
+                                    fontSize = 14.sp,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
                         }
-                    }
-                } else {
-                    if (isGridView) {
-                        items(paginatedCourses) { course ->
-                            GridCourseItem(course, onClick = { onNavigateToDetail(course) })
+                    } else if (paginatedCourses.isEmpty()) {
+                        item(span = { GridItemSpan(2) }) {
+                            Box(modifier = Modifier
+                                .fillMaxWidth()
+                                .height(200.dp), contentAlignment = Alignment.Center) {
+                                Text("Mata kuliah tidak ditemukan.", color = Color.Gray)
+                            }
                         }
                     } else {
-                        items(paginatedCourses, span = { GridItemSpan(2) }) { course ->
-                            ListCourseItem(course, onClick = { onNavigateToDetail(course) })
+                        if (isGridView) {
+                            items(paginatedCourses) { course ->
+                                GridCourseItem(course, onClick = { onNavigateToDetail(course) })
+                            }
+                        } else {
+                            items(paginatedCourses, span = { GridItemSpan(2) }) { course ->
+                                ListCourseItem(course, onClick = { onNavigateToDetail(course) })
+                            }
                         }
                     }
-                }
 
-                if (totalPages > 1 && !isLoading && errorMessage == null) {
+                    if (totalPages > 1 && !isLoading && displayError == null) {
+                        item(span = { GridItemSpan(2) }) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 16.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                TextButton(
+                                    onClick = { if (currentPage > 1) currentPage-- },
+                                    enabled = currentPage > 1
+                                ) {
+                                    Icon(Icons.Default.ArrowBack, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Seb", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+
+                                Text("Hal $currentPage / $totalPages", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
+
+                                TextButton(
+                                    onClick = { if (currentPage < totalPages) currentPage++ },
+                                    enabled = currentPage < totalPages
+                                ) {
+                                    Text("Sel", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Icon(Icons.Default.ArrowForward, contentDescription = null, modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        }
+                    }
+
                     item(span = { GridItemSpan(2) }) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 16.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            TextButton(
-                                onClick = { if (currentPage > 1) currentPage-- },
-                                enabled = currentPage > 1
-                            ) {
-                                Icon(Icons.Default.ArrowBack, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Seb", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            }
-
-                            Text("Hal $currentPage / $totalPages", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
-
-                            TextButton(
-                                onClick = { if (currentPage < totalPages) currentPage++ },
-                                enabled = currentPage < totalPages
-                            ) {
-                                Text("Sel", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Icon(Icons.Default.ArrowForward, contentDescription = null, modifier = Modifier.size(16.dp))
-                            }
-                        }
+                        Spacer(modifier = Modifier.height(24.dp))
                     }
                 }
 
-                item(span = { GridItemSpan(2) }) {
-                    Spacer(modifier = Modifier.height(24.dp))
-                }
+                PullRefreshIndicator(
+                    refreshing = isLoading,
+                    state = pullRefreshState,
+                    modifier = Modifier.align(Alignment.TopCenter),
+                    contentColor = ColorPrimaryBlue
+                )
             }
         }
     }
@@ -357,7 +391,7 @@ fun ListCourseItem(course: Course, onClick: () -> Unit) {
         Column {
             AsyncImage(
                 model = getImageUrlByCategory(course.kategori),
-                contentDescription = "Cover Mata Kuliah",
+                contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -391,7 +425,7 @@ fun GridCourseItem(course: Course, onClick: () -> Unit) {
         Column {
             AsyncImage(
                 model = getImageUrlByCategory(course.kategori),
-                contentDescription = "Cover Mata Kuliah",
+                contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -422,7 +456,7 @@ fun BottomNavigationBar(onMenuClick: () -> Unit) {
         NavigationBarItem(
             selected = false,
             onClick = { onMenuClick() },
-            icon = { Icon(Icons.Outlined.Menu, contentDescription = "Menu") },
+            icon = { Icon(Icons.Outlined.Menu, contentDescription = null) },
             label = { Text("Menu", fontSize = 10.sp, fontWeight = FontWeight.SemiBold) },
             colors = NavigationBarItemDefaults.colors(
                 unselectedIconColor = Color.Gray,
@@ -432,7 +466,7 @@ fun BottomNavigationBar(onMenuClick: () -> Unit) {
         NavigationBarItem(
             selected = true,
             onClick = { },
-            icon = { Icon(Icons.Filled.Home, contentDescription = "Beranda") },
+            icon = { Icon(Icons.Filled.Home, contentDescription = null) },
             label = { Text("Beranda", fontSize = 10.sp, fontWeight = FontWeight.Bold) },
             colors = NavigationBarItemDefaults.colors(
                 selectedIconColor = Color.White,
@@ -443,7 +477,7 @@ fun BottomNavigationBar(onMenuClick: () -> Unit) {
         NavigationBarItem(
             selected = false,
             onClick = { },
-            icon = { Icon(Icons.Outlined.Person, contentDescription = "Profil") },
+            icon = { Icon(Icons.Outlined.Person, contentDescription = null) },
             label = { Text("Profil", fontSize = 10.sp, fontWeight = FontWeight.SemiBold) },
             colors = NavigationBarItemDefaults.colors(
                 unselectedIconColor = Color.Gray,

@@ -1,6 +1,7 @@
 package com.d3if4802.smartexam.data
 
 import com.google.gson.annotations.SerializedName
+import okhttp3.OkHttpClient
 import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -173,11 +174,22 @@ interface ApiService {
 }
 
 object RetrofitClient {
-    private const val BASE_URL = "http://172.23.75.192:3000/"
+    private const val BASE_URL = "https://fpylxflpwqaooxxehrnj.supabase.co/rest/v1/"
+
+    private const val SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZweWx4Zmxwd3Fhb294eGVocm5qIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIzOTI2MzAsImV4cCI6MjA5Nzk2ODYzMH0.qvse80BQH9nqCGzM5VKIGtsKBL_1E_OrnReoCM1wJM8"
+
+    private val httpClient = OkHttpClient.Builder().addInterceptor { chain ->
+        val request = chain.request().newBuilder()
+            .addHeader("apikey", SUPABASE_KEY)
+            .addHeader("Authorization", "Bearer $SUPABASE_KEY")
+            .build()
+        chain.proceed(request)
+    }.build()
 
     val apiService: ApiService by lazy {
         Retrofit.Builder()
             .baseUrl(BASE_URL)
+            .client(httpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(ApiService::class.java)
