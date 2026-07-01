@@ -1,7 +1,6 @@
 package com.d3if4802.smartexam.viewmodel
 
 import android.content.Context
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -36,7 +35,6 @@ import java.net.UnknownHostException
 class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
 
     val currentUserId = MutableStateFlow(0)
-
     val loginErrorMessage = MutableStateFlow<String?>(null)
     val registerErrorMessage = MutableStateFlow<String?>(null)
     val submitMessage = MutableStateFlow<String?>(null)
@@ -78,62 +76,106 @@ class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
     private var timerJob: Job? = null
     private var isSubmitting = false
 
+    private var failedLoginAttempts = 0
+    private var loginBlockedUntil: Long = 0
+
     init {
         fetchAllAnswers()
     }
 
-    fun register(emailInput: String, usernameInput: String, passwordInput: String, onSuccess: () -> Unit) {
+    fun register(emailInput: String, usernameInput: String, passwordInput: String, confirmPasswordInput: String, onSuccess: () -> Unit) {
+        val emailTrimmed = emailInput.trim()
+        val usernameTrimmed = usernameInput.trim()
+
+        if (!emailTrimmed.contains("@")) {
+            registerErrorMessage.value = "Format email tidak valid"
+            return
+        }
+
+        if (passwordInput.length < 8) {
+            registerErrorMessage.value = "Password minimal 8 karakter"
+            return
+        }
+
+        if (passwordInput != confirmPasswordInput) {
+            registerErrorMessage.value = "Password tidak sama"
+            return
+        }
+
         viewModelScope.launch {
             _isLoading.value = true
             registerErrorMessage.value = null
             try {
                 val payload = RegisterRequest(
-                    username = usernameInput,
-                    email = emailInput,
+                    username = usernameTrimmed,
+                    email = emailTrimmed,
                     password = passwordInput,
-                    nama_lengkap = usernameInput
+                    nama_lengkap = usernameTrimmed
                 )
                 RetrofitClient.apiService.registerUser(payload)
                 _isLoading.value = false
                 onSuccess()
             } catch (e: retrofit2.HttpException) {
                 _isLoading.value = false
-                registerErrorMessage.value = "Gagal mendaftar (Error ${e.code()})"
-                Log.e("CEK_API", "Error Register HTTP: ${e.response()?.errorBody()?.string()}")
+                if (e.code() == 409 || e.code() == 400) {
+                    val errorBody = e.response()?.errorBody()?.string()?.lowercase() ?: ""
+                    if (errorBody.contains("username")) {
+                        registerErrorMessage.value = "Username tidak tersedia"
+                    } else {
+                        registerErrorMessage.value = "Email sudah digunakan"
+                    }
+                } else {
+                    registerErrorMessage.value = "Gagal mendaftar (Error ${e.code()})"
+                }
             } catch (e: Exception) {
                 _isLoading.value = false
                 registerErrorMessage.value = "Gagal mendaftar: Jaringan bermasalah."
-                Log.e("CEK_API", "Error Register Umum: ${e.message}")
             }
         }
     }
 
-    fun login(emailOrUsername: String, passwordInput: String, onSuccess: () -> Unit) {
+    fun login(emailOrUsernameInput: String, passwordInput: String, onSuccess: () -> Unit) {
+        val emailOrUsername = emailOrUsernameInput.trim()
+
+        if (emailOrUsername.isEmpty() || passwordInput.isEmpty()) {
+            loginErrorMessage.value = "Kolom wajib diisi"
+            return
+        }
+
+        if (System.currentTimeMillis() < loginBlockedUntil) {
+            loginErrorMessage.value = "Coba lagi dalam 1 menit"
+            return
+        }
+
         viewModelScope.launch {
             _isLoading.value = true
             loginErrorMessage.value = null
             try {
                 val queryOr = "(email.eq.$emailOrUsername,username.eq.$emailOrUsername)"
-                val queryPassword = "eq.$passwordInput"
-
                 val response = RetrofitClient.apiService.loginUser(
                     emailOrUsername = queryOr,
-                    password = queryPassword
+                    password = "eq.$passwordInput"
                 )
 
                 _isLoading.value = false
 
                 if (response.isNotEmpty()) {
+                    failedLoginAttempts = 0
                     val loggedInUser = response.first()
                     currentUserId.value = loggedInUser.user_id
                     onSuccess()
                 } else {
-                    loginErrorMessage.value = "Email/Username atau Password salah."
+                    failedLoginAttempts++
+                    if (failedLoginAttempts >= 3) {
+                        loginBlockedUntil = System.currentTimeMillis() + 60000
+                        loginErrorMessage.value = "Coba lagi dalam 1 menit"
+                    } else {
+                        loginErrorMessage.value = "Email/Username atau Password salah"
+                    }
                 }
             } catch (e: Exception) {
                 _isLoading.value = false
                 loginErrorMessage.value = "Terjadi kesalahan jaringan."
-                Log.e("CEK_API", "Error Login: ${e.message}")
             }
         }
     }
@@ -144,9 +186,7 @@ class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
                 val filter = "eq.$courseId"
                 val response = RetrofitClient.apiService.getMaterialsByCourse(filter)
                 _materialList.value = response
-            } catch (e: Exception) {
-                Log.e("CEK_API", "Error: ${e.message}")
-            }
+            } catch (e: Exception) { }
         }
     }
 
@@ -156,9 +196,7 @@ class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
                 val filter = "eq.$courseId"
                 val response = RetrofitClient.apiService.getExamsByCourse(filter)
                 _examList.value = response
-            } catch (e: Exception) {
-                Log.e("CEK_API", "Error: ${e.message}")
-            }
+            } catch (e: Exception) { }
         }
     }
 
@@ -170,9 +208,7 @@ class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
                     examId = "eq.$examId"
                 )
                 _historyList.value = response
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
+            } catch (e: Exception) { }
         }
     }
 
@@ -191,9 +227,7 @@ class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
                     }
                     _examList.value = listSekarang
                 }
-            } catch (e: Exception) {
-                Log.e("CEK_API", "Error ambil 1 ujian: ${e.message}")
-            }
+            } catch (e: Exception) { }
         }
     }
 
@@ -218,9 +252,7 @@ class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
                     loadJawaban(0)
                     startTimer(durasiDosen)
                 }
-            } catch (e: Exception) {
-                Log.e("CEK_API", "Error: $e")
-            }
+            } catch (e: Exception) { }
         }
     }
 
@@ -230,9 +262,7 @@ class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
                 val filter = "eq.$mahasiswaId"
                 val response = RetrofitClient.apiService.getAssessmentResults(filter)
                 _assessmentResults.value = response
-            } catch (e: Exception) {
-                Log.e("CEK_API", "Error: ${e.message}")
-            }
+            } catch (e: Exception) { }
         }
     }
 
@@ -388,7 +418,6 @@ class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
                 } else {
                     submitMessage.value = "Gagal mengirim jawaban: ${e.message}"
                 }
-                Log.e("CEK_API", "Error: ${e.message}")
                 isSubmitting = false
                 _isLoading.value = false
             }
@@ -400,7 +429,6 @@ class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
             try {
                 val apiKey = BuildConfig.GEMINI_API_KEY
                 if (apiKey.isBlank()) {
-                    Log.e("CEK_AI", "API Key KOSONG")
                     isSubmitting = false
                     _isLoading.value = false
                     submitMessage.value = "API Key Gemini kosong."
@@ -474,7 +502,6 @@ class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
                                 }
                             } catch (e: Exception) {
                                 retryCount++
-                                Log.e("CEK_AI", "Error Gemini pada percobaan $retryCount: ${e.message}")
                                 if (retryCount >= maxRetries) {
                                     feedbackAi = "Server AI sedang penuh (High Demand). Silakan coba lagi nanti."
                                     break
@@ -513,7 +540,6 @@ class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
                 _isLoading.value = false
 
             } catch (e: Exception) {
-                Log.e("CEK_AI", "ERROR FATAL: ${e.message}")
                 submitMessage.value = "Gagal memproses penilaian AI."
                 isSubmitting = false
                 _isLoading.value = false
@@ -536,9 +562,7 @@ class ExamViewModel(private val answerDao: AnswerDao) : ViewModel() {
                     qId = "eq.$questionId",
                     payload = payload
                 )
-            } catch (e: Exception) {
-                Log.e("CEK_AI", "7. Gagal Update DB: ${e.message}")
-            }
+            } catch (e: Exception) { }
         }
     }
 }
