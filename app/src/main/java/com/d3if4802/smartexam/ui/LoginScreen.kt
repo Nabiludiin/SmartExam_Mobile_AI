@@ -147,7 +147,7 @@ fun LoginScreen(
                     onClick = {
                         if (emailOrUsername.isNotBlank() && password.isNotBlank()) {
                             viewModel.login(
-                                emailOrUsername = emailOrUsername,
+                                emailOrUsernameInput = emailOrUsername,
                                 passwordInput = password,
                                 onSuccess = { onLoginSuccess() }
                             )

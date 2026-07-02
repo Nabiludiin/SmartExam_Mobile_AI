@@ -33,7 +33,7 @@ import com.d3if4802.smartexam.viewmodel.ExamViewModel
 
 @Composable
 fun RegisterScreen(
-    viewModel: ExamViewModel, // Tambahan ViewModel untuk akses API
+    viewModel: ExamViewModel,
     onNavigateToLogin: () -> Unit
 ) {
     var email by remember { mutableStateOf("") }
@@ -197,7 +197,6 @@ fun RegisterScreen(
                         enabled = !isLoading
                     )
 
-                    // Tampilkan pesan error dari API jika ada
                     if (errorMessage != null) {
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
@@ -217,6 +216,7 @@ fun RegisterScreen(
                                     emailInput = email,
                                     usernameInput = username,
                                     passwordInput = password,
+                                    confirmPasswordInput = confirmPassword,
                                     onSuccess = { onNavigateToLogin() }
                                 )
                             }
